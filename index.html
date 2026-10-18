@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f7a62">
+  <meta name="description" content="Gestionnaire de budget personnel. Les données restent dans ton navigateur.">
+  <title>Mon Budget</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="nav" aria-label="Menu principal">
+      <div class="nav__logo">💶 Mon Budget</div>
+      <a href="#accueil" class="nav__lien" data-vue="accueil">
+        <span class="nav__icone" aria-hidden="true">🏠</span><span>Accueil</span>
+      </a>
+      <a href="#transactions" class="nav__lien" data-vue="transactions">
+        <span class="nav__icone" aria-hidden="true">📋</span><span>Transactions</span>
+      </a>
+      <a href="#budgets" class="nav__lien" data-vue="budgets">
+        <span class="nav__icone" aria-hidden="true">🎚️</span><span>Budgets</span>
+      </a>
+      <a href="#epargne" class="nav__lien" data-vue="epargne">
+        <span class="nav__icone" aria-hidden="true">🐷</span><span>Épargne</span>
+      </a>
+      <a href="#parametres" class="nav__lien" data-vue="parametres">
+        <span class="nav__icone" aria-hidden="true">⚙️</span><span>Paramètres</span>
+      </a>
+    </nav>
+
+    <main class="contenu">
+      <header class="entete">
+        <h1 id="titre-vue">Accueil</h1>
+        <div class="mois" id="selecteur-mois">
+          <button type="button" class="mois__btn" id="mois-precedent" aria-label="Mois précédent">‹</button>
+          <span class="mois__libelle" id="mois-libelle" aria-live="polite"></span>
+          <button type="button" class="mois__btn" id="mois-suivant" aria-label="Mois suivant">›</button>
+        </div>
+      </header>
+      <p class="intro" id="intro-vue"></p>
+
+      <div id="vue"></div>
+    </main>
+  </div>
+
+
+  <dialog id="modale-transaction" class="modale" aria-labelledby="modale-titre">
+    <form id="form-transaction" novalidate>
+      <h2 id="modale-titre">Nouvelle transaction</h2>
+
+      <div class="bascule" role="radiogroup" aria-label="Type de transaction">
+        <label class="bascule__option bascule__option--depense">
+          <input type="radio" name="type" value="depense" checked><span>Dépense</span>
+        </label>
+        <label class="bascule__option bascule__option--revenu">
+          <input type="radio" name="type" value="revenu"><span>Revenu</span>
+        </label>
+      </div>
+
+      <label class="champ">
+        <span class="champ__label">Montant (€)</span>
+        <input class="champ__montant" name="montant" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </label>
+
+      <label class="champ">
+        <span class="champ__label">Catégorie</span>
+        <select name="categorieId"></select>
+      </label>
+
+      <label class="champ">
+        <span class="champ__label">Date</span>
+        <input type="date" name="date">
+      </label>
+
+      <label class="champ">
+        <span class="champ__label">Note (facultatif)</span>
+        <input name="note" maxlength="100" autocomplete="off" placeholder="ex. Courses de la semaine">
+      </label>
+
+      <p class="erreur" id="form-erreur" role="alert"></p>
+
+      <div class="modale__actions">
+        <button type="button" class="btn btn--danger" id="btn-supprimer" hidden>Supprimer</button>
+        <span class="espace"></span>
+        <button type="button" class="btn" data-fermer>Annuler</button>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modale-budget" class="modale" aria-labelledby="budget-titre">
+    <form id="form-budget" novalidate>
+      <h2 id="budget-titre">Budget</h2>
+
+      <label class="champ">
+        <span class="champ__label">Limite par mois (€)</span>
+        <input class="champ__montant" name="montant" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </label>
+
+      <p class="aide" id="budget-aide"></p>
+      <p class="erreur" id="budget-erreur" role="alert"></p>
+
+      <div class="modale__actions">
+        <button type="button" class="btn btn--danger" id="budget-supprimer" hidden>Supprimer</button>
+        <span class="espace"></span>
+        <button type="button" class="btn" data-fermer>Annuler</button>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modale-objectif" class="modale" aria-labelledby="objectif-titre">
+    <form id="form-objectif" novalidate>
+      <h2 id="objectif-titre">Nouvel objectif</h2>
+
+      <label class="champ">
+        <span class="champ__label">Nom</span>
+        <input name="nom" maxlength="40" autocomplete="off" placeholder="ex. Vacances d'été">
+      </label>
+
+      <fieldset class="choix-icones" id="objectif-icones">
+        <legend class="champ__label">Icône</legend>
+      </fieldset>
+
+      <label class="champ">
+        <span class="champ__label">Montant à atteindre (€)</span>
+        <input class="champ__montant" name="cible" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </label>
+
+      <label class="champ">
+        <span class="champ__label">Date limite (facultatif)</span>
+        <input type="date" name="dateLimite">
+      </label>
+
+      <p class="erreur" id="objectif-erreur" role="alert"></p>
+
+      <div class="modale__actions">
+        <button type="button" class="btn btn--danger" id="objectif-supprimer" hidden>Supprimer</button>
+        <span class="espace"></span>
+        <button type="button" class="btn" data-fermer>Annuler</button>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modale-versement" class="modale" aria-labelledby="versement-titre">
+    <form id="form-versement" novalidate>
+      <h2 id="versement-titre">Ajouter</h2>
+
+      <label class="champ">
+        <span class="champ__label">Montant (€)</span>
+        <input class="champ__montant" name="montant" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </label>
+
+      <label class="champ">
+        <span class="champ__label">Date</span>
+        <input type="date" name="date">
+      </label>
+
+      <p class="aide" id="versement-aide"></p>
+      <p class="erreur" id="versement-erreur" role="alert"></p>
+
+      <div class="modale__actions">
+        <span class="espace"></span>
+        <button type="button" class="btn" data-fermer>Annuler</button>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/format.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/budgets.js"></script>
+  <script src="js/objectifs.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

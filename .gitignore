@@ -1,0 +1,6 @@
+# Outils locaux (serveur de test, réglages de l'éditeur)
+.claude/
+.vscode/
+
+# Sauvegardes exportées depuis l'app : ce sont tes données personnelles
+mon-budget-sauvegarde-*.json
