@@ -10,7 +10,7 @@
    (Tes données ne sont pas ici : elles restent dans le localStorage.)
    ========================================================= */
 
-const VERSION = 'mon-budget-v1';
+const VERSION = 'mon-budget-v2';
 
 const FICHIERS = [
   './',
@@ -34,8 +34,11 @@ const FICHIERS = [
 ];
 
 // Installation : on télécharge tous les fichiers de la nouvelle version.
+// cache: 'reload' force un vrai téléchargement : sans ça, le navigateur pourrait
+// fournir une ancienne copie (GitHub Pages la garde 10 minutes) et la figer ici.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(FICHIERS)));
+  const requetes = FICHIERS.map((f) => new Request(f, { cache: 'reload' }));
+  e.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(requetes)));
   // On n'active pas tout de suite : l'app propose « Mettre à jour » (voir app.js).
 });
 
