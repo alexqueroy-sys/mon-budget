@@ -19,6 +19,7 @@ const etat = {
   objectifEnEdition: null,
   versement: null,         // { objectifId, sens: 1 | -1 }
   abonnementEnEdition: null,
+  periodeStats: 6,         // nombre de mois affichés dans Statistiques
 };
 
 // « intro » : la phrase affichée sous le titre pour expliquer à quoi sert l'écran.
@@ -42,6 +43,10 @@ const VUES = {
   abonnements: {
     titre: 'Abonnements', avecMois: false, rendre: rendreAbonnements,
     intro: 'Enregistre ce que tu paies chaque mois : la dépense est ajoutée toute seule le jour du prélèvement.',
+  },
+  statistiques: {
+    titre: 'Statistiques', avecMois: true, rendre: rendreStatistiques,
+    intro: "Regarde comment évoluent tes revenus et tes dépenses sur plusieurs mois, et où part ton argent.",
   },
   parametres: {
     titre: 'Paramètres', avecMois: false, rendre: rendreParametres,
@@ -201,6 +206,7 @@ function brancherEvenements() {
   brancherBudgets();
   brancherObjectifs();
   brancherAbonnements();
+  brancherStatistiques();
 }
 
 /* =========================================================
@@ -389,7 +395,10 @@ function rendreAccueil() {
     </section>
 
     <section class="bloc">
-      <h2>Dépenses par catégorie</h2>
+      <div class="bloc__entete">
+        <h2>Dépenses par catégorie</h2>
+        <a href="#statistiques">Voir l'évolution</a>
+      </div>
       ${htmlRepartition}
     </section>
 

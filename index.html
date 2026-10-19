@@ -28,7 +28,10 @@
       <a href="#abonnements" class="nav__lien" data-vue="abonnements">
         <span class="nav__icone" aria-hidden="true">🔁</span><span>Abonnements</span>
       </a>
-      <!-- Sur téléphone, Paramètres est accessible par la roue dentée en haut de l'écran -->
+      <!-- Sur téléphone, Statistiques et Paramètres sont accessibles par les icônes en haut de l'écran -->
+      <a href="#statistiques" class="nav__lien nav__lien--pc" data-vue="statistiques">
+        <span class="nav__icone" aria-hidden="true">📊</span><span>Statistiques</span>
+      </a>
       <a href="#parametres" class="nav__lien nav__lien--pc" data-vue="parametres">
         <span class="nav__icone" aria-hidden="true">⚙️</span><span>Paramètres</span>
       </a>
@@ -38,6 +41,7 @@
       <header class="entete">
         <div class="entete__titre">
           <h1 id="titre-vue">Accueil</h1>
+          <a href="#statistiques" class="entete__reglages" aria-label="Statistiques">📊</a>
           <a href="#parametres" class="entete__reglages" aria-label="Paramètres">⚙️</a>
         </div>
         <div class="mois" id="selecteur-mois">
@@ -313,6 +317,7 @@
   <script src="js/budgets.js"></script>
   <script src="js/objectifs.js"></script>
   <script src="js/abonnements.js"></script>
+  <script src="js/statistiques.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -15,6 +15,11 @@
   --positif: #1f8a5b;
   --negatif: #c8463d;
   --attention: #b97a0c;
+  /* Graphiques : couleurs des séries (palette validée pour le daltonisme) */
+  --serie-revenus: #2a78d6;
+  --serie-depenses: #eb6834;
+  --grille: #e1e0d9;
+  --axe: #c3c2b7;
   --ombre: 0 1px 3px rgba(0, 0, 0, .06), 0 4px 16px rgba(0, 0, 0, .04);
   --rayon: 14px;
   --largeur-nav: 220px;
@@ -34,6 +39,10 @@
     --positif: #4cc28a;
     --negatif: #ff7b70;
     --attention: #f0b545;
+    --serie-revenus: #3987e5;
+    --serie-depenses: #d95926;
+    --grille: #2c3633;
+    --axe: #3e4a46;
     --ombre: none;
   }
 }
@@ -575,6 +584,82 @@ a { color: var(--principal); }
 .bascule__option--virement input:checked + span { background: var(--texte-doux); color: var(--surface); }
 
 .filtres--comptes select:first-child { grid-column: 1 / -1; }
+
+/* ---------- Statistiques ---------- */
+
+.filtre-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+  font-size: .9rem;
+}
+
+.periode { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.periode__btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--texte-doux);
+  font-weight: 600;
+  cursor: pointer;
+}
+.periode__btn[aria-pressed="true"] { background: var(--surface); color: var(--texte); box-shadow: var(--ombre); }
+
+.cartes--stats .carte__valeur { font-variant-numeric: normal; }
+
+.legende { display: flex; gap: 16px; font-size: .85rem; color: var(--texte-doux); margin-bottom: 8px; }
+.legende > span { display: inline-flex; align-items: center; gap: 6px; }
+.legende__cle { width: 12px; height: 12px; border-radius: 3px; }
+.legende__cle--revenus { background: var(--serie-revenus); }
+.legende__cle--depenses { background: var(--serie-depenses); }
+
+.graphique { position: relative; width: 100%; min-height: 220px; }
+.graphique__svg { display: block; overflow: visible; }
+.graphique .grille { stroke: var(--grille); stroke-width: 1; }
+.graphique .grille--zero { stroke: var(--axe); }
+.graphique .axe { fill: var(--texte-doux); font-size: 11px; font-variant-numeric: tabular-nums; }
+.graphique .serie-revenus { fill: var(--serie-revenus); }
+.graphique .serie-depenses { fill: var(--serie-depenses); }
+.graphique .zone-survol { fill: transparent; cursor: pointer; outline: none; }
+.graphique .zone-survol--active { fill: var(--texte); fill-opacity: .06; }
+
+.bulle {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  min-width: 170px;
+  padding: 8px 10px;
+  border: 1px solid var(--bordure);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .15);
+  font-size: .85rem;
+  pointer-events: none;
+}
+.bulle__titre { font-weight: 600; margin-bottom: 4px; }
+.bulle__ligne { display: grid; grid-template-columns: 14px auto 1fr; align-items: center; gap: 6px; }
+.bulle__ligne strong { font-variant-numeric: tabular-nums; }
+.bulle__ligne span:last-child { color: var(--texte-doux); }
+.bulle__cle { width: 12px; height: 2px; border-radius: 1px; }
+.bulle__cle--revenus { background: var(--serie-revenus); }
+.bulle__cle--depenses { background: var(--serie-depenses); }
+
+.tableau-vue { margin-top: 12px; }
+.tableau-vue summary { cursor: pointer; font-size: .9rem; color: var(--texte-doux); }
+.tableau-vue table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.tableau-vue th, .tableau-vue td { padding: 6px 4px; border-top: 1px solid var(--bordure); text-align: right; }
+.tableau-vue th:first-child { text-align: left; font-weight: 500; }
+
+.barres { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.barres__ligne { display: grid; grid-template-columns: minmax(90px, 30%) 1fr; align-items: center; gap: 12px; font-size: .9rem; }
+.barres__nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barres__piste { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Barre de 14px, bout arrondi, base carrée ; la valeur est écrite juste après */
+.barres__barre { flex: none; min-width: 2px; height: 14px; border-radius: 0 4px 4px 0; background: var(--serie-depenses); }
+.barres__valeur { flex: none; font-size: .85rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---------- Toast ---------- */
 

@@ -15,6 +15,7 @@ de les sauvegarder ou de les transférer sur un autre appareil.
 - **Budgets** : une limite de dépense par mois et par catégorie, avec alerte à 80 % et en cas de dépassement
 - **Épargne** : objectifs avec montant cible, date limite et calcul de l'effort mensuel
 - **Abonnements** : paiements mensuels, ajoutés automatiquement aux transactions le jour du prélèvement (avec pause possible)
+- **Statistiques** : revenus et dépenses mois par mois (3, 6 ou 12 mois), moyennes, mois le plus dépensier, dépenses par catégorie, avec une version tableau de chaque graphique
 - **Paramètres** : export et import des données
 
 ## Lancer l'application
@@ -38,4 +39,5 @@ Aucune installation : ouvre `index.html` dans un navigateur.
 | `js/budgets.js` | Écran Budgets |
 | `js/objectifs.js` | Écran Épargne |
 | `js/abonnements.js` | Écran Abonnements |
+| `js/statistiques.js` | Écran Statistiques et graphiques (SVG fait main, sans bibliothèque) |
 | `js/app.js` | Navigation, Accueil, Transactions, Paramètres |
