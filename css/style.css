@@ -113,6 +113,20 @@ a { color: var(--principal); }
 
 .entete h1 { font-size: 1.5rem; }
 
+.entete__titre { display: flex; align-items: center; gap: 8px; }
+
+/* Roue dentée vers Paramètres : seulement sur téléphone (sur PC, le lien est dans le menu) */
+.entete__reglages {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  text-decoration: none;
+}
+.entete__reglages:hover { background: var(--surface-2); }
+.nav__lien--pc { display: none; }
+
 /* Phrase d'explication sous le titre de chaque écran */
 .intro {
   margin: -4px 0 16px;
@@ -491,6 +505,21 @@ a { color: var(--principal); }
 .choix-icones input:checked + span { border-color: var(--principal); }
 .choix-icones input:focus-visible + span { outline: 2px solid var(--principal); outline-offset: 2px; }
 
+/* ---------- Abonnements ---------- */
+
+.ajout--seul { grid-template-columns: 1fr; }
+.ajout--seul .ajout__btn { flex-direction: row; justify-content: center; gap: 10px; }
+.ajout__btn--principal { background: var(--principal); color: var(--principal-texte); }
+
+.ligne--pause { opacity: .6; }
+.ligne__unite { font-weight: 400; font-size: .8rem; color: var(--texte-doux); }
+
+.champs-cote { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
+
+.case { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.case input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--principal); flex: none; }
+.case small { display: block; color: var(--texte-doux); font-size: .8rem; }
+
 /* ---------- Toast ---------- */
 
 .toast {
@@ -525,6 +554,8 @@ a { color: var(--principal); }
     border-top: none;
     border-right: 1px solid var(--bordure);
   }
+  .nav__lien--pc { display: flex; }
+  .entete__reglages { display: none; }
   .nav__logo { display: block; padding: 4px 12px 20px; font-weight: 700; font-size: 1.1rem; }
   .nav__lien {
     flex: none;

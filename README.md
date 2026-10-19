@@ -13,6 +13,7 @@ de les sauvegarder ou de les transférer sur un autre appareil.
 - **Transactions** : ajout, modification et suppression des dépenses et revenus, filtres et recherche
 - **Budgets** : une limite de dépense par mois et par catégorie, avec alerte à 80 % et en cas de dépassement
 - **Épargne** : objectifs avec montant cible, date limite et calcul de l'effort mensuel
+- **Abonnements** : paiements mensuels, ajoutés automatiquement aux transactions le jour du prélèvement (avec pause possible)
 - **Paramètres** : export et import des données
 
 ## Lancer l'application
@@ -34,4 +35,5 @@ Aucune installation : ouvre `index.html` dans un navigateur.
 | `js/store.js` | Stockage, validation et migration des données |
 | `js/budgets.js` | Écran Budgets |
 | `js/objectifs.js` | Écran Épargne |
+| `js/abonnements.js` | Écran Abonnements |
 | `js/app.js` | Navigation, Accueil, Transactions, Paramètres |

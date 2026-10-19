@@ -25,14 +25,21 @@
       <a href="#epargne" class="nav__lien" data-vue="epargne">
         <span class="nav__icone" aria-hidden="true">🐷</span><span>Épargne</span>
       </a>
-      <a href="#parametres" class="nav__lien" data-vue="parametres">
+      <a href="#abonnements" class="nav__lien" data-vue="abonnements">
+        <span class="nav__icone" aria-hidden="true">🔁</span><span>Abonnements</span>
+      </a>
+      <!-- Sur téléphone, Paramètres est accessible par la roue dentée en haut de l'écran -->
+      <a href="#parametres" class="nav__lien nav__lien--pc" data-vue="parametres">
         <span class="nav__icone" aria-hidden="true">⚙️</span><span>Paramètres</span>
       </a>
     </nav>
 
     <main class="contenu">
       <header class="entete">
-        <h1 id="titre-vue">Accueil</h1>
+        <div class="entete__titre">
+          <h1 id="titre-vue">Accueil</h1>
+          <a href="#parametres" class="entete__reglages" aria-label="Paramètres">⚙️</a>
+        </div>
         <div class="mois" id="selecteur-mois">
           <button type="button" class="mois__btn" id="mois-precedent" aria-label="Mois précédent">‹</button>
           <span class="mois__libelle" id="mois-libelle" aria-live="polite"></span>
@@ -170,12 +177,65 @@
     </form>
   </dialog>
 
+  <dialog id="modale-abonnement" class="modale" aria-labelledby="abonnement-titre">
+    <form id="form-abonnement" novalidate>
+      <h2 id="abonnement-titre">Nouvel abonnement</h2>
+
+      <label class="champ">
+        <span class="champ__label">Nom</span>
+        <input name="nom" maxlength="40" autocomplete="off" placeholder="ex. Spotify, forfait, salle de sport">
+      </label>
+
+      <label class="champ">
+        <span class="champ__label">Montant par mois (€)</span>
+        <input class="champ__montant" name="montant" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </label>
+
+      <div class="champs-cote">
+        <label class="champ">
+          <span class="champ__label">Catégorie</span>
+          <select name="categorieId"></select>
+        </label>
+        <label class="champ">
+          <span class="champ__label">Jour du prélèvement</span>
+          <input type="number" name="jour" min="1" max="31" inputmode="numeric">
+        </label>
+      </div>
+
+      <label class="case" id="abonnement-mois-actuel">
+        <input type="checkbox" name="moisActuel">
+        <span>
+          Compter aussi le prélèvement de ce mois-ci
+          <small>Décoche si tu l'as déjà noté dans tes transactions.</small>
+        </span>
+      </label>
+
+      <label class="case" id="abonnement-pause" hidden>
+        <input type="checkbox" name="pause">
+        <span>
+          Mettre en pause
+          <small>Plus aucune dépense ne sera ajoutée tant que la pause est active.</small>
+        </span>
+      </label>
+
+      <p class="erreur" id="abonnement-erreur" role="alert"></p>
+
+      <div class="modale__actions">
+        <button type="button" class="btn btn--danger" id="abonnement-supprimer" hidden>Supprimer</button>
+        <span class="espace"></span>
+        <button type="button" class="btn" data-fermer>Annuler</button>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/format.js"></script>
   <script src="js/store.js"></script>
   <script src="js/budgets.js"></script>
   <script src="js/objectifs.js"></script>
+  <script src="js/abonnements.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -5,12 +5,15 @@
 
    Forme des données :
    {
-     version: 2,
+     version: 3,
      categories: [{ id, nom, type: 'depense' | 'revenu', couleur, icone }],
      transactions: [{ id, type, montant (centimes), categorieId, date: 'AAAA-MM-JJ', note, creeLe }],
      budgets: [{ categorieId, montant (centimes par mois) }],
      objectifs: [{ id, nom, icone, cible (centimes), dateLimite: 'AAAA-MM-JJ' | null, creeLe,
                    versements: [{ id, montant (centimes, négatif = retrait), date }] }],
+     abonnements: [{ id, nom, montant (centimes par mois), categorieId, jour (1 à 31), actif,
+                     depuis: 'AAAA-MM-JJ' (aucun prélèvement avant cette date),
+                     dernierMoisGenere: 'AAAA-MM' | null }],
      derniereSauvegarde: '2026-10-18T…' | null
    }
 
@@ -19,7 +22,7 @@
    ========================================================= */
 
 const CLE_STOCKAGE = 'mon-budget.donnees';
-const VERSION_DONNEES = 2;
+const VERSION_DONNEES = 3;
 const TYPES = ['depense', 'revenu'];
 
 const CATEGORIES_PAR_DEFAUT = [
@@ -46,6 +49,7 @@ function donneesInitiales() {
     transactions: [],
     budgets: [],
     objectifs: [],
+    abonnements: [],
     derniereSauvegarde: null,
   };
 }
@@ -75,8 +79,11 @@ function validerEtMigrer(d) {
   if (d.version === 1) {
     d = { ...d, budgets: [], objectifs: [], version: 2 };
   }
+  if (d.version === 2) {
+    d = { ...d, abonnements: [], version: 3 };
+  }
 
-  const tableaux = ['categories', 'transactions', 'budgets', 'objectifs'];
+  const tableaux = ['categories', 'transactions', 'budgets', 'objectifs', 'abonnements'];
   if (tableaux.some((cle) => !Array.isArray(d[cle]))) throw new Error(ERREUR_FORMAT);
 
   return {
@@ -85,6 +92,7 @@ function validerEtMigrer(d) {
     transactions: d.transactions.map(validerTransaction),
     budgets: d.budgets.map(validerBudget),
     objectifs: d.objectifs.map(validerObjectif),
+    abonnements: d.abonnements.map(validerAbonnement),
     derniereSauvegarde: typeof d.derniereSauvegarde === 'string' ? d.derniereSauvegarde : null,
   };
 }
@@ -153,7 +161,7 @@ function validerTransaction(t, i) {
     && typeof t.categorieId === 'string';
   if (!valide) throw new Error(`La transaction n°${i + 1} du fichier est invalide.`);
 
-  return {
+  const transaction = {
     id: t.id,
     type: t.type,
     montant: t.montant,
@@ -162,6 +170,76 @@ function validerTransaction(t, i) {
     note: typeof t.note === 'string' ? t.note.slice(0, 100) : '',
     creeLe: typeof t.creeLe === 'string' ? t.creeLe : '',
   };
+  // Présent seulement sur les dépenses créées automatiquement par un abonnement
+  if (typeof t.abonnementId === 'string') transaction.abonnementId = t.abonnementId;
+  return transaction;
+}
+
+function validerAbonnement(a, i) {
+  const valide = a
+    && typeof a.id === 'string'
+    && typeof a.nom === 'string'
+    && montantValide(a.montant)
+    && typeof a.categorieId === 'string'
+    && Number.isInteger(a.jour) && a.jour >= 1 && a.jour <= 31
+    && typeof a.actif === 'boolean'
+    && typeof a.depuis === 'string' && FORMAT_DATE.test(a.depuis)
+    && (a.dernierMoisGenere === null || (typeof a.dernierMoisGenere === 'string' && /^\d{4}-\d{2}$/.test(a.dernierMoisGenere)));
+  if (!valide) throw new Error(`L'abonnement n°${i + 1} du fichier est invalide.`);
+
+  return {
+    id: a.id,
+    nom: a.nom.slice(0, 40),
+    montant: a.montant,
+    categorieId: a.categorieId,
+    jour: a.jour,
+    actif: a.actif,
+    depuis: a.depuis,
+    dernierMoisGenere: a.dernierMoisGenere,
+  };
+}
+
+/* ---------- Calendrier des prélèvements ---------- */
+
+/** "2026-10" -> { annee: 2026, mois: 10 } */
+function lireMois(texte) {
+  const [annee, mois] = texte.split('-').map(Number);
+  return { annee, mois };
+}
+
+function texteMois(annee, mois) {
+  return `${annee}-${String(mois).padStart(2, '0')}`;
+}
+
+function moisApres({ annee, mois }) {
+  return mois === 12 ? { annee: annee + 1, mois: 1 } : { annee, mois: mois + 1 };
+}
+
+/**
+ * Date du prélèvement d'un mois donné. Un abonnement prélevé « le 31 »
+ * tombe le dernier jour des mois plus courts (30 avril, 28 février…).
+ */
+function datePrelevement(annee, mois, jour) {
+  const joursDansLeMois = new Date(annee, mois, 0).getDate();
+  return `${texteMois(annee, mois)}-${String(Math.min(jour, joursDansLeMois)).padStart(2, '0')}`;
+}
+
+/** Premier mois pas encore traité pour cet abonnement. */
+function premierMoisATraiter(abonnement) {
+  return abonnement.dernierMoisGenere
+    ? moisApres(lireMois(abonnement.dernierMoisGenere))
+    : lireMois(abonnement.depuis.slice(0, 7));
+}
+
+/** Prochaine date de prélèvement à venir (strictement après aujourd'hui). */
+function prochainPrelevement(abonnement, aujourdhui = dateDuJour()) {
+  let courant = premierMoisATraiter(abonnement);
+  for (let i = 0; i < 36; i++) {
+    const date = datePrelevement(courant.annee, courant.mois, abonnement.jour);
+    if (date >= abonnement.depuis && date > aujourdhui) return date;
+    courant = moisApres(courant);
+  }
+  return null;
 }
 
 /* ---------- Le magasin de données ---------- */
@@ -303,6 +381,71 @@ const Store = {
     if (!objectif) return false;
     objectif.versements = objectif.versements.filter((v) => v.id !== versementId);
     return this.sauvegarder();
+  },
+
+  /* ---------- Abonnements (dépenses qui reviennent chaque mois) ---------- */
+
+  abonnement(id) {
+    return this.donnees.abonnements.find((a) => a.id === id);
+  },
+
+  ajouterAbonnement(valeurs) {
+    this.donnees.abonnements.push({ id: genererId(), ...valeurs, actif: true, dernierMoisGenere: null });
+    return this.sauvegarder();
+  },
+
+  modifierAbonnement(id, valeurs) {
+    const abonnement = this.abonnement(id);
+    if (!abonnement) return false;
+    // Au moment de la reprise après une pause, on ne rattrape pas les mois en pause.
+    if (valeurs.actif && !abonnement.actif) valeurs.depuis = dateDuJour();
+    Object.assign(abonnement, valeurs);
+    return this.sauvegarder();
+  },
+
+  /** Les dépenses déjà créées par l'abonnement restent : elles ont vraiment été payées. */
+  supprimerAbonnement(id) {
+    this.donnees.abonnements = this.donnees.abonnements.filter((a) => a.id !== id);
+    return this.sauvegarder();
+  },
+
+  /**
+   * Crée les dépenses des abonnements actifs dont la date de prélèvement est arrivée,
+   * y compris les mois manqués si l'app n'a pas été ouverte depuis longtemps.
+   * Renvoie le nombre de dépenses créées.
+   */
+  genererPrelevements(aujourdhui = dateDuJour()) {
+    const moisActuel = aujourdhui.slice(0, 7);
+    let crees = 0;
+
+    for (const abonnement of this.donnees.abonnements) {
+      if (!abonnement.actif) continue;
+      let courant = premierMoisATraiter(abonnement);
+
+      while (texteMois(courant.annee, courant.mois) <= moisActuel) {
+        const date = datePrelevement(courant.annee, courant.mois, abonnement.jour);
+        if (date > aujourdhui) break; // pas encore le jour du prélèvement
+
+        if (date >= abonnement.depuis) {
+          this.donnees.transactions.push({
+            id: genererId(),
+            type: 'depense',
+            montant: abonnement.montant,
+            categorieId: abonnement.categorieId,
+            date,
+            note: abonnement.nom,
+            creeLe: new Date().toISOString(),
+            abonnementId: abonnement.id,
+          });
+          crees += 1;
+        }
+        abonnement.dernierMoisGenere = texteMois(courant.annee, courant.mois);
+        courant = moisApres(courant);
+      }
+    }
+
+    this.sauvegarder();
+    return crees;
   },
 
   /* ---------- Export / import ---------- */

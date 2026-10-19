@@ -17,6 +17,7 @@ const etat = {
   budgetEnEdition: null,   // id de la catégorie
   objectifEnEdition: null,
   versement: null,         // { objectifId, sens: 1 | -1 }
+  abonnementEnEdition: null,
 };
 
 // « intro » : la phrase affichée sous le titre pour expliquer à quoi sert l'écran.
@@ -36,6 +37,10 @@ const VUES = {
   epargne: {
     titre: 'Épargne', avecMois: false, rendre: rendreObjectifs,
     intro: "Crée des objectifs (vacances, permis, fonds d'urgence…) et mets de l'argent de côté petit à petit.",
+  },
+  abonnements: {
+    titre: 'Abonnements', avecMois: false, rendre: rendreAbonnements,
+    intro: 'Enregistre ce que tu paies chaque mois : la dépense est ajoutée toute seule le jour du prélèvement.',
   },
   parametres: {
     titre: 'Paramètres', avecMois: false, rendre: rendreParametres,
@@ -73,10 +78,18 @@ function demarrer() {
     afficherToast("Attention : ce navigateur n'enregistre pas les données (navigation privée ?).", 6000);
   } else if (resultat.donneesIllisibles) {
     afficherToast('Les données enregistrées étaient abîmées. Importe ta dernière sauvegarde.', 6000);
+  } else {
+    annoncerPrelevements(Store.genererPrelevements());
   }
 
   brancherEvenements();
   allerDepuisAdresse();
+}
+
+function annoncerPrelevements(crees) {
+  if (crees > 0) {
+    afficherToast(`🔁 ${crees} prélèvement${crees > 1 ? 's' : ''} d'abonnement ajouté${crees > 1 ? 's' : ''} à tes transactions`, 4000);
+  }
 }
 
 /** L'écran affiché dépend de l'adresse (#accueil, #transactions…) : le bouton « retour » fonctionne. */
@@ -139,8 +152,16 @@ function brancherEvenements() {
       ouvrirModaleBudget(budget.dataset.budget);
       return;
     }
+    const abonnement = e.target.closest('[data-abonnement]');
+    if (abonnement) {
+      const trouve = Store.abonnement(abonnement.dataset.abonnement);
+      if (trouve) ouvrirModaleAbonnement(trouve);
+      return;
+    }
     const action = e.target.closest('[data-action]');
-    if (action) actionObjectif(action.dataset.action, action);
+    if (!action) return;
+    if (action.dataset.action === 'nouvel-abonnement') ouvrirModaleAbonnement();
+    else actionObjectif(action.dataset.action, action);
   });
 
   el.form.addEventListener('change', (e) => {
@@ -162,6 +183,7 @@ function brancherEvenements() {
 
   brancherBudgets();
   brancherObjectifs();
+  brancherAbonnements();
 }
 
 /* =========================================================
@@ -210,7 +232,11 @@ function rappelSauvegardeNecessaire() {
 function ligneTransaction(t, { avecDate = false } = {}) {
   const categorie = Store.categorie(t.categorieId);
   const estRevenu = t.type === 'revenu';
-  const sousTitre = [t.note, avecDate ? formaterDateCourte(t.date) : ''].filter(Boolean).join(' · ');
+  const sousTitre = [
+    t.abonnementId ? '🔁' : '', // dépense créée automatiquement par un abonnement
+    t.note,
+    avecDate ? formaterDateCourte(t.date) : '',
+  ].filter(Boolean).join(' · ').replace('🔁 · ', '🔁 ');
 
   return `
     <li>
@@ -284,6 +310,14 @@ function rendreAccueil() {
           </li>`;
       }).join('')}</ul>`;
 
+  // Les 3 prochains prélèvements d'abonnement
+  const abonnements = abonnementsActifsTries();
+  const totalAbonnements = abonnements.reduce((s, a) => s + a.montant, 0);
+  const htmlAbonnements = abonnements.length === 0
+    ? '<p class="vide">Note tes paiements mensuels (forfait, Spotify…) dans <a href="#abonnements">Abonnements</a>.</p>'
+    : `<p class="resume">${formaterMontant(totalAbonnements)} par mois · prochains prélèvements :</p>
+       <ul class="liste">${abonnements.slice(0, 3).map(ligneAbonnement).join('')}</ul>`;
+
   el.vue.innerHTML = `
     <section class="cartes">
       <div class="carte carte--solde">
@@ -333,6 +367,14 @@ function rendreAccueil() {
         ${objectifs.length > 0 ? '<a href="#epargne">Tout voir</a>' : ''}
       </div>
       ${htmlEpargne}
+    </section>
+
+    <section class="bloc">
+      <div class="bloc__entete">
+        <h2>Abonnements</h2>
+        ${abonnements.length > 0 ? '<a href="#abonnements">Tout voir</a>' : ''}
+      </div>
+      ${htmlAbonnements}
     </section>`;
 }
 
@@ -428,7 +470,7 @@ function rendreListeTransactions() {
    ========================================================= */
 
 function rendreParametres() {
-  const { transactions, categories, budgets, objectifs, derniereSauvegarde } = Store.donnees;
+  const { transactions, categories, budgets, objectifs, abonnements, derniereSauvegarde } = Store.donnees;
   const compter = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
   const libelleSauvegarde = derniereSauvegarde
     ? new Date(derniereSauvegarde).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -457,7 +499,8 @@ function rendreParametres() {
       <h2>Mes données</h2>
       <p>
         Enregistrés dans ce navigateur : ${compter(transactions.length, 'transaction')},
-        ${compter(budgets.length, 'budget')} et ${compter(objectifs.length, "objectif")} d'épargne.
+        ${compter(budgets.length, 'budget')}, ${compter(objectifs.length, 'objectif')} d'épargne
+        et ${compter(abonnements.length, 'abonnement')}.
       </p>
     </section>
 
@@ -508,6 +551,8 @@ async function importerFichier(fichier) {
       return;
     }
     afficherToast('Sauvegarde importée ✔');
+    // Les prélèvements passés depuis la sauvegarde sont ajoutés maintenant.
+    annoncerPrelevements(Store.genererPrelevements());
     afficher();
   } catch (erreur) {
     afficherToast(erreur.message || 'Fichier invalide.', 5000);
