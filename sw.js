@@ -10,7 +10,7 @@
    (Tes données ne sont pas ici : elles restent dans le localStorage.)
    ========================================================= */
 
-const VERSION = 'mon-budget-v2';
+const VERSION = 'mon-budget-v3';
 
 const FICHIERS = [
   './',

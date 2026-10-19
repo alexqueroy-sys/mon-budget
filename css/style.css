@@ -4,13 +4,13 @@
    ========================================================= */
 
 :root {
-  --fond: #f4f6f5;
+  --fond: #f5f7f6;
   --surface: #ffffff;
-  --surface-2: #eef2f0;
-  --texte: #1b2420;
-  --texte-doux: #5d6b65;
-  --bordure: #dde4e0;
-  --principal: #1f7a62;
+  --surface-2: #f0f3f2;
+  --texte: #13221d;
+  --texte-doux: #5f6e68;
+  --bordure: #e2e8e5;
+  --principal: #12805c;
   --principal-texte: #ffffff;
   --positif: #1f8a5b;
   --negatif: #c8463d;
@@ -18,11 +18,17 @@
   /* Graphiques : couleurs des séries (palette validée pour le daltonisme) */
   --serie-revenus: #2a78d6;
   --serie-depenses: #eb6834;
-  --grille: #e1e0d9;
-  --axe: #c3c2b7;
-  --ombre: 0 1px 3px rgba(0, 0, 0, .06), 0 4px 16px rgba(0, 0, 0, .04);
-  --rayon: 14px;
-  --largeur-nav: 220px;
+  --serie-tresorerie: #1baf7a;
+  --mois-courant: #eaf1fd;
+  --grille: #e8ebe9;
+  --axe: #c3c9c6;
+  --ombre: 0 1px 2px rgba(16, 24, 40, .05);
+  --rayon: 10px;
+  --largeur-nav: 232px;
+  /* Menu : vert foncé, identique en mode clair et sombre */
+  --nav-fond: linear-gradient(180deg, #0b3a31 0%, #0f5142 55%, #157058 100%);
+  --nav-texte: rgba(255, 255, 255, .78);
+  --nav-actif: #1f9e68;
   color-scheme: light dark;
 }
 
@@ -41,6 +47,8 @@
     --attention: #f0b545;
     --serie-revenus: #3987e5;
     --serie-depenses: #d95926;
+    --serie-tresorerie: #199e70;
+    --mois-courant: #1c2a3a;
     --grille: #2c3633;
     --axe: #3e4a46;
     --ombre: none;
@@ -80,28 +88,42 @@ a { color: var(--principal); }
   left: 0; right: 0; bottom: 0;
   z-index: 10;
   display: flex;
-  background: var(--surface);
-  border-top: 1px solid var(--bordure);
-  padding-bottom: env(safe-area-inset-bottom);
+  gap: 2px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  background: #0d473b;
+  background: var(--nav-fond);
 }
 
 .nav__logo { display: none; }
 
 .nav__lien {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 8px 4px;
-  color: var(--texte-doux);
-  font-size: .7rem;
+  gap: 3px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  color: var(--nav-texte);
+  font-size: .68rem;
   text-decoration: none;
   white-space: nowrap;
 }
 
-.nav__lien[aria-current="page"] { color: var(--principal); font-weight: 600; }
-.nav__icone { font-size: 1.25rem; }
+.nav__lien[aria-current="page"] { background: var(--nav-actif); color: #fff; font-weight: 600; }
+
+/* Icônes fines (traits), dessinées en SVG dans index.html */
+.icone {
+  width: 20px; height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav__icone { display: grid; place-items: center; }
 
 /* ---------- Contenu ---------- */
 
@@ -121,49 +143,71 @@ a { color: var(--principal); }
   margin-bottom: 16px;
 }
 
-.entete h1 { font-size: 1.5rem; }
+.entete h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
 
-.entete__titre { display: flex; align-items: center; gap: 8px; }
+.entete__titre { display: flex; align-items: center; gap: 4px; }
+.entete__titre h1 { margin-right: 6px; }
 
-/* Roue dentée vers Paramètres : seulement sur téléphone (sur PC, le lien est dans le menu) */
+/* Icônes Statistiques / Paramètres : seulement sur téléphone (sur PC, les liens sont dans le menu) */
 .entete__reglages {
   display: grid;
   place-items: center;
   width: 36px; height: 36px;
-  border-radius: 50%;
-  font-size: 1.1rem;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--texte-doux);
   text-decoration: none;
 }
-.entete__reglages:hover { background: var(--surface-2); }
+.entete__reglages:hover { color: var(--texte); }
+.entete__reglages .icone { width: 18px; height: 18px; }
 .nav__lien--pc { display: none; }
 
 /* Phrase d'explication sous le titre de chaque écran */
 .intro {
-  margin: -4px 0 16px;
+  margin: -6px 0 20px;
   padding-left: 12px;
   border-left: 3px solid var(--principal);
   font-weight: 600;
-  font-size: .95rem;
+  font-size: .9rem;
   color: var(--texte-doux);
 }
 
-.mois { display: flex; align-items: center; gap: 4px; }
+/* Sélecteur de mois : un seul bouton à bordure, comme un champ de date */
+.mois {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--ombre);
+}
 
 .mois__btn {
-  width: 36px; height: 36px;
-  border: 1px solid var(--bordure);
-  border-radius: 50%;
-  background: var(--surface);
+  width: 34px; height: 36px;
+  border: none;
+  background: none;
+  color: var(--texte-doux);
   font-size: 1.2rem;
   cursor: pointer;
 }
-.mois__btn:hover { background: var(--surface-2); }
+.mois__btn:hover { color: var(--texte); background: var(--surface-2); }
+.mois__btn:first-child { border-radius: 8px 0 0 8px; }
+.mois__btn:last-child { border-radius: 0 8px 8px 0; }
 
 .mois__libelle {
-  min-width: 130px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 140px;
+  padding: 0 8px;
+  border-left: 1px solid var(--bordure);
+  border-right: 1px solid var(--bordure);
   font-weight: 600;
+  font-size: .9rem;
 }
+.mois__libelle .icone { width: 16px; height: 16px; color: var(--texte-doux); }
 
 /* ---------- Cartes et blocs ---------- */
 
@@ -312,9 +356,9 @@ a { color: var(--principal); }
 /* ---------- Boutons ---------- */
 
 .btn {
-  padding: 10px 16px;
+  padding: 9px 16px;
   border: 1px solid var(--bordure);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
   font-weight: 600;
   cursor: pointer;
@@ -586,57 +630,95 @@ a { color: var(--principal); }
 
 .filtres--comptes select:first-child { grid-column: 1 / -1; }
 
-/* ---------- Statistiques ---------- */
+/* ---------- Trésorerie (onglet #statistiques) ---------- */
 
-.filtre-stats {
+/* Ligne de filtres au-dessus de tout ce qu'elle concerne */
+.filtre-treso {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 16px;
+  gap: 8px;
   margin-bottom: 16px;
-  font-size: .9rem;
 }
 
-.periode { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.filtre-treso__periode,
+.filtre-treso__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--ombre);
+  font-size: .9rem;
+  font-weight: 600;
+}
+.filtre-treso__periode .icone { width: 16px; height: 16px; color: var(--texte-doux); }
+
+.periode { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--bordure); }
 .periode__btn {
-  padding: 6px 14px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 9px;
+  border-radius: 6px;
   background: none;
   color: var(--texte-doux);
+  font-size: .85rem;
   font-weight: 600;
   cursor: pointer;
 }
-.periode__btn[aria-pressed="true"] { background: var(--surface); color: var(--texte); box-shadow: var(--ombre); }
+.periode__btn[aria-pressed="true"] { background: var(--surface); color: var(--texte); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 
-.cartes--stats .carte__valeur { font-variant-numeric: normal; }
+.cartes.cartes--treso { grid-template-columns: 1fr 1fr; }
+.cartes--treso .carte__valeur { font-variant-numeric: normal; font-size: 1.2rem; }
 
-.legende { display: flex; gap: 16px; font-size: .85rem; color: var(--texte-doux); margin-bottom: 8px; }
-.legende > span { display: inline-flex; align-items: center; gap: 6px; }
-.legende__cle { width: 12px; height: 12px; border-radius: 3px; }
+.bloc--treso { padding: 16px 0 0; overflow: hidden; }
+
+.legende-treso {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 0 16px 8px;
+  font-size: .82rem;
+  color: var(--texte-doux);
+}
+.legende-treso > span { display: inline-flex; align-items: center; gap: 6px; }
+.legende-treso__droite { margin-left: auto; }
+.legende__cle { width: 10px; height: 10px; border-radius: 50%; }
 .legende__cle--revenus { background: var(--serie-revenus); }
 .legende__cle--depenses { background: var(--serie-depenses); }
+.legende__trait { width: 16px; height: 2px; border-radius: 1px; background: var(--serie-tresorerie); }
 
-.graphique { position: relative; width: 100%; min-height: 220px; }
+.graphique { position: relative; width: auto; min-height: 260px; margin: 0 12px 0 4px; }
 .graphique__svg { display: block; overflow: visible; }
 .graphique .grille { stroke: var(--grille); stroke-width: 1; }
 .graphique .grille--zero { stroke: var(--axe); }
 .graphique .axe { fill: var(--texte-doux); font-size: 11px; font-variant-numeric: tabular-nums; }
+.graphique .axe--mois { fill: var(--texte); font-weight: 600; }
+.graphique .axe--courant { font-weight: 700; }
+.graphique .mois-courant { fill: var(--mois-courant); }
 .graphique .serie-revenus { fill: var(--serie-revenus); }
 .graphique .serie-depenses { fill: var(--serie-depenses); }
+.graphique .colonne--prevision { opacity: .3; }
+.graphique .ligne-tresorerie { fill: none; stroke: var(--serie-tresorerie); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.graphique .ligne-tresorerie--prevision { stroke-dasharray: 5 5; }
+.graphique .point-tresorerie { fill: var(--serie-tresorerie); stroke: var(--surface); stroke-width: 2; }
 .graphique .zone-survol { fill: transparent; cursor: pointer; outline: none; }
-.graphique .zone-survol--active { fill: var(--texte); fill-opacity: .06; }
+.graphique .zone-survol--active { fill: var(--texte); fill-opacity: .05; }
+
+.note-prevision { margin: 4px 16px 12px !important; font-size: .8rem; color: var(--texte-doux); }
 
 .bulle {
   position: absolute;
   top: 0;
   z-index: 2;
-  min-width: 170px;
+  min-width: 200px;
   padding: 8px 10px;
   border: 1px solid var(--bordure);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, .15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .15);
   font-size: .85rem;
   pointer-events: none;
 }
@@ -647,20 +729,66 @@ a { color: var(--principal); }
 .bulle__cle { width: 12px; height: 2px; border-radius: 1px; }
 .bulle__cle--revenus { background: var(--serie-revenus); }
 .bulle__cle--depenses { background: var(--serie-depenses); }
+.bulle__cle--tresorerie { background: var(--serie-tresorerie); }
 
-.tableau-vue { margin-top: 12px; }
-.tableau-vue summary { cursor: pointer; font-size: .9rem; color: var(--texte-doux); }
-.tableau-vue table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
-.tableau-vue th, .tableau-vue td { padding: 6px 4px; border-top: 1px solid var(--bordure); text-align: right; }
-.tableau-vue th:first-child { text-align: left; font-weight: 500; }
+/* Tableau détaillé : défile horizontalement, la première colonne reste visible */
+.tableau-treso { overflow-x: auto; border-top: 1px solid var(--bordure); }
+.tableau-treso table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.tableau-treso th, .tableau-treso td { padding: 10px 14px; border-bottom: 1px solid var(--bordure); white-space: nowrap; text-align: right; }
+.tableau-treso tbody th, .tableau-treso .col-libelle {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 190px;
+  text-align: left;
+  font-weight: 500;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--bordure);
+}
+.tableau-treso thead th { font-weight: 600; background: var(--surface-2); vertical-align: top; }
+.tableau-treso thead .col-libelle { background: var(--surface-2); }
+.col-annee, .col-note { display: block; font-size: .75rem; font-weight: 400; color: var(--texte-doux); }
+.col-note { font-style: italic; }
 
-.barres { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
-.barres__ligne { display: grid; grid-template-columns: minmax(90px, 30%) 1fr; align-items: center; gap: 12px; font-size: .9rem; }
-.barres__nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.barres__piste { display: flex; align-items: center; gap: 8px; min-width: 0; }
-/* Barre de 14px, bout arrondi, base carrée ; la valeur est écrite juste après */
-.barres__barre { flex: none; min-width: 2px; height: 14px; border-radius: 0 4px 4px 0; background: var(--serie-depenses); }
-.barres__valeur { flex: none; font-size: .85rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tableau-treso .col--courant { background: var(--mois-courant); }
+.tableau-treso thead .col--courant { background: var(--mois-courant); box-shadow: inset 0 -2px 0 var(--serie-revenus); }
+.tableau-treso td.col--futur { color: var(--texte-doux); font-style: italic; }
+.tableau-treso .cellule--zero { color: var(--texte-doux); opacity: .7; }
+
+.ligne-treso th, .ligne-treso td { font-weight: 700; background: var(--surface-2); }
+.ligne-treso td.col--courant { background: var(--mois-courant); }
+.ligne-groupe td { font-weight: 600; }
+.ligne-variation th { color: var(--texte-doux); }
+
+.basculer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.basculer__fleche { display: inline-block; width: 12px; transition: transform .15s; color: var(--texte-doux); }
+.basculer[aria-expanded="true"] .basculer__fleche { transform: rotate(90deg); }
+
+.sous-ligne th { padding-left: 34px; }
+/* Catégorie en étiquette, comme dans les logiciels de compta */
+.etiquette {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--bordure);
+  font-size: .82rem;
+}
+
+@media (min-width: 800px) {
+  .cartes.cartes--treso { grid-template-columns: repeat(4, 1fr); }
+  .graphique { margin: 0 20px 0 8px; }
+  .legende-treso { padding: 0 20px 8px; }
+}
 
 /* ---------- App installable ---------- */
 
@@ -714,25 +842,44 @@ a { color: var(--principal); }
     top: 0; right: auto;
     width: var(--largeur-nav);
     flex-direction: column;
-    gap: 4px;
-    padding: 20px 12px;
-    border-top: none;
-    border-right: 1px solid var(--bordure);
+    gap: 2px;
+    padding: 18px 12px;
   }
   .nav__lien--pc { display: flex; }
   .entete__reglages { display: none; }
-  .nav__logo { display: block; padding: 4px 12px 20px; font-weight: 700; font-size: 1.1rem; }
+  .nav__logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 10px 22px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -.01em;
+  }
+  .nav__logo-marque {
+    display: grid;
+    place-items: center;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .14);
+    font-size: 1rem;
+  }
   .nav__lien {
     flex: none;
     flex-direction: row;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    font-size: .95rem;
+    gap: 12px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: .92rem;
   }
-  .nav__lien:hover, .nav__lien[aria-current="page"] { background: var(--surface-2); }
+  .nav__lien:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+  .nav__lien[aria-current="page"] { background: var(--nav-actif); box-shadow: 0 1px 2px rgba(0, 0, 0, .2); }
+  .nav__lien .icone { width: 18px; height: 18px; }
+  /* Paramètres tout en bas du menu, comme dans les logiciels pro */
+  .nav__lien--bas { margin-top: auto; }
 
-  .contenu { padding: 28px 32px 48px; }
+  .contenu { max-width: 1080px; padding: 28px 40px 48px; }
   .entete h1 { font-size: 1.75rem; }
 
   .cartes { grid-template-columns: 2fr 1fr 1fr; }

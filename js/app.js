@@ -19,7 +19,9 @@ const etat = {
   objectifEnEdition: null,
   versement: null,         // { objectifId, sens: 1 | -1 }
   abonnementEnEdition: null,
-  periodeStats: 6,         // nombre de mois affichés dans Statistiques
+  periodeStats: 6,         // nombre de mois passés affichés dans Trésorerie
+  compteStats: 'tous',     // compte affiché dans Trésorerie
+  groupesOuverts: { entrees: true, sorties: true }, // détail par catégorie dans le tableau
 };
 
 // « intro » : la phrase affichée sous le titre pour expliquer à quoi sert l'écran.
@@ -45,8 +47,8 @@ const VUES = {
     intro: 'Enregistre ce que tu paies chaque mois : la dépense est ajoutée toute seule le jour du prélèvement.',
   },
   statistiques: {
-    titre: 'Statistiques', avecMois: true, rendre: rendreStatistiques,
-    intro: "Regarde comment évoluent tes revenus et tes dépenses sur plusieurs mois, et où part ton argent.",
+    titre: 'Trésorerie', avecMois: true, rendre: rendreStatistiques,
+    intro: "L'argent qui entre, qui sort et ce qu'il te reste, mois par mois, avec une prévision pour les mois à venir.",
   },
   parametres: {
     titre: 'Paramètres', avecMois: false, rendre: rendreParametres,
