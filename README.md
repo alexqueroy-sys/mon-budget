@@ -9,7 +9,8 @@ de les sauvegarder ou de les transférer sur un autre appareil.
 
 ## Fonctionnalités
 
-- **Accueil** : résumé du mois (solde, revenus, dépenses), budgets, épargne
+- **Accueil** : solde réel de chaque compte bancaire (courant, livret…), résumé du mois, budgets, épargne
+- **Comptes** : plusieurs comptes avec leur solde, et virements entre eux (qui ne comptent ni comme dépense ni comme revenu)
 - **Transactions** : ajout, modification et suppression des dépenses et revenus, filtres et recherche
 - **Budgets** : une limite de dépense par mois et par catégorie, avec alerte à 80 % et en cas de dépassement
 - **Épargne** : objectifs avec montant cible, date limite et calcul de l'effort mensuel
@@ -33,6 +34,7 @@ Aucune installation : ouvre `index.html` dans un navigateur.
 | `css/style.css` | Apparence (mobile d'abord, mode sombre automatique) |
 | `js/format.js` | Mise en forme des montants et des dates |
 | `js/store.js` | Stockage, validation et migration des données |
+| `js/comptes.js` | Comptes bancaires (bloc de l'Accueil) |
 | `js/budgets.js` | Écran Budgets |
 | `js/objectifs.js` | Écran Épargne |
 | `js/abonnements.js` | Écran Abonnements |

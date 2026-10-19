@@ -57,12 +57,16 @@
     <form id="form-transaction" novalidate>
       <h2 id="modale-titre">Nouvelle transaction</h2>
 
-      <div class="bascule" role="radiogroup" aria-label="Type de transaction">
+      <div class="bascule" id="bascule-type" role="radiogroup" aria-label="Type de transaction">
         <label class="bascule__option bascule__option--depense">
           <input type="radio" name="type" value="depense" checked><span>Dépense</span>
         </label>
         <label class="bascule__option bascule__option--revenu">
           <input type="radio" name="type" value="revenu"><span>Revenu</span>
+        </label>
+        <!-- Visible seulement avec au moins 2 comptes -->
+        <label class="bascule__option bascule__option--virement" id="option-virement">
+          <input type="radio" name="type" value="virement"><span>Virement</span>
         </label>
       </div>
 
@@ -71,7 +75,19 @@
         <input class="champ__montant" name="montant" inputmode="decimal" autocomplete="off" placeholder="0,00">
       </label>
 
-      <label class="champ">
+      <!-- Les champs « compte » n'apparaissent qu'avec au moins 2 comptes -->
+      <div class="champs-cote" id="champs-comptes">
+        <label class="champ" id="champ-compte">
+          <span class="champ__label" id="libelle-compte">Compte</span>
+          <select name="compteId"></select>
+        </label>
+        <label class="champ" id="champ-compte-dest">
+          <span class="champ__label">Vers</span>
+          <select name="compteDestId"></select>
+        </label>
+      </div>
+
+      <label class="champ" id="champ-categorie">
         <span class="champ__label">Catégorie</span>
         <select name="categorieId"></select>
       </label>
@@ -202,6 +218,11 @@
         </label>
       </div>
 
+      <label class="champ" id="abonnement-compte">
+        <span class="champ__label">Prélevé sur le compte</span>
+        <select name="compteId"></select>
+      </label>
+
       <label class="case" id="abonnement-mois-actuel">
         <input type="checkbox" name="moisActuel">
         <span>
@@ -229,10 +250,50 @@
     </form>
   </dialog>
 
+  <dialog id="modale-compte" class="modale" aria-labelledby="compte-titre">
+    <form id="form-compte" novalidate>
+      <h2 id="compte-titre">Nouveau compte</h2>
+
+      <label class="champ">
+        <span class="champ__label">Nom</span>
+        <input name="nom" maxlength="40" autocomplete="off" placeholder="ex. Compte courant, Livret A">
+      </label>
+
+      <fieldset class="choix-icones" id="compte-icones">
+        <legend class="champ__label">Icône</legend>
+      </fieldset>
+
+      <label class="champ">
+        <span class="champ__label">Solde actuel (€)</span>
+        <!-- Pas de clavier numérique : sur iPhone, il n'a pas de touche « - » pour un découvert -->
+        <input class="champ__montant" name="solde" autocomplete="off" placeholder="0,00">
+      </label>
+      <p class="aide">Le montant que tu vois aujourd'hui sur l'appli de ta banque. Mets un « - » devant si tu es à découvert.</p>
+
+      <label class="case" id="compte-archive" hidden>
+        <input type="checkbox" name="archive">
+        <span>
+          Archiver ce compte
+          <small>Il disparaît de l'Accueil et des formulaires, mais ses transactions sont gardées.</small>
+        </span>
+      </label>
+
+      <p class="erreur" id="compte-erreur" role="alert"></p>
+
+      <div class="modale__actions">
+        <button type="button" class="btn btn--danger" id="compte-supprimer" hidden>Supprimer</button>
+        <span class="espace"></span>
+        <button type="button" class="btn" data-fermer>Annuler</button>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/format.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/comptes.js"></script>
   <script src="js/budgets.js"></script>
   <script src="js/objectifs.js"></script>
   <script src="js/abonnements.js"></script>

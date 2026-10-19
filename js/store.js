@@ -5,13 +5,16 @@
 
    Forme des données :
    {
-     version: 3,
+     version: 4,
      categories: [{ id, nom, type: 'depense' | 'revenu', couleur, icone }],
-     transactions: [{ id, type, montant (centimes), categorieId, date: 'AAAA-MM-JJ', note, creeLe }],
+     comptes: [{ id, nom, icone, soldeInitial (centimes, peut être négatif), archive, creeLe }],
+     transactions: [{ id, type: 'depense' | 'revenu' | 'virement', montant (centimes), compteId,
+                      compteDestId (virement seulement : compte qui reçoit), categorieId ('' pour un virement),
+                      date: 'AAAA-MM-JJ', note, creeLe, abonnementId? }],
      budgets: [{ categorieId, montant (centimes par mois) }],
      objectifs: [{ id, nom, icone, cible (centimes), dateLimite: 'AAAA-MM-JJ' | null, creeLe,
                    versements: [{ id, montant (centimes, négatif = retrait), date }] }],
-     abonnements: [{ id, nom, montant (centimes par mois), categorieId, jour (1 à 31), actif,
+     abonnements: [{ id, nom, montant (centimes par mois), categorieId, compteId, jour (1 à 31), actif,
                      depuis: 'AAAA-MM-JJ' (aucun prélèvement avant cette date),
                      dernierMoisGenere: 'AAAA-MM' | null }],
      derniereSauvegarde: '2026-10-18T…' | null
@@ -22,8 +25,10 @@
    ========================================================= */
 
 const CLE_STOCKAGE = 'mon-budget.donnees';
-const VERSION_DONNEES = 3;
-const TYPES = ['depense', 'revenu'];
+const VERSION_DONNEES = 4;
+const TYPES = ['depense', 'revenu'];                    // types de catégorie
+const TYPES_TRANSACTION = [...TYPES, 'virement'];       // un virement va d'un de tes comptes à un autre
+const COMPTE_PRINCIPAL = { id: 'cpt-principal', nom: 'Compte principal', icone: '🏦' };
 
 const CATEGORIES_PAR_DEFAUT = [
   { id: 'cat-salaire',       nom: 'Salaire',       type: 'revenu',  couleur: '#2e9e6b', icone: '💼' },
@@ -46,12 +51,17 @@ function donneesInitiales() {
   return {
     version: VERSION_DONNEES,
     categories: CATEGORIES_PAR_DEFAUT.map((c) => ({ ...c })),
+    comptes: [nouveauComptePrincipal()],
     transactions: [],
     budgets: [],
     objectifs: [],
     abonnements: [],
     derniereSauvegarde: null,
   };
+}
+
+function nouveauComptePrincipal() {
+  return { ...COMPTE_PRINCIPAL, soldeInitial: 0, archive: false, creeLe: new Date().toISOString() };
 }
 
 function genererId() {
@@ -82,13 +92,26 @@ function validerEtMigrer(d) {
   if (d.version === 2) {
     d = { ...d, abonnements: [], version: 3 };
   }
+  if (d.version === 3) {
+    // Tout ce qui existait avant les comptes est rangé dans un « Compte principal ».
+    const avecCompte = (liste) => (Array.isArray(liste) ? liste.map((x) => ({ ...x, compteId: COMPTE_PRINCIPAL.id })) : liste);
+    d = {
+      ...d,
+      comptes: [nouveauComptePrincipal()],
+      transactions: avecCompte(d.transactions),
+      abonnements: avecCompte(d.abonnements),
+      version: 4,
+    };
+  }
 
-  const tableaux = ['categories', 'transactions', 'budgets', 'objectifs', 'abonnements'];
+  const tableaux = ['categories', 'comptes', 'transactions', 'budgets', 'objectifs', 'abonnements'];
+  if (Array.isArray(d.comptes) && d.comptes.length === 0) throw new Error(ERREUR_FORMAT);
   if (tableaux.some((cle) => !Array.isArray(d[cle]))) throw new Error(ERREUR_FORMAT);
 
   return {
     version: VERSION_DONNEES,
     categories: d.categories.map(validerCategorie),
+    comptes: d.comptes.map(validerCompte),
     transactions: d.transactions.map(validerTransaction),
     budgets: d.budgets.map(validerBudget),
     objectifs: d.objectifs.map(validerObjectif),
@@ -152,24 +175,45 @@ function validerCategorie(c, i) {
   };
 }
 
+function validerCompte(c, i) {
+  const valide = c
+    && typeof c.id === 'string'
+    && typeof c.nom === 'string'
+    && Number.isInteger(c.soldeInitial) && Math.abs(c.soldeInitial) < 1e11;
+  if (!valide) throw new Error(`Le compte n°${i + 1} du fichier est invalide.`);
+
+  return {
+    id: c.id,
+    nom: c.nom.slice(0, 40),
+    icone: typeof c.icone === 'string' ? Array.from(c.icone).slice(0, 3).join('') : '🏦',
+    soldeInitial: c.soldeInitial,
+    archive: c.archive === true,
+    creeLe: typeof c.creeLe === 'string' ? c.creeLe : '',
+  };
+}
+
 function validerTransaction(t, i) {
   const valide = t
     && typeof t.id === 'string'
-    && TYPES.includes(t.type)
+    && TYPES_TRANSACTION.includes(t.type)
     && Number.isInteger(t.montant) && t.montant > 0 && t.montant < 1e11
     && typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date)
-    && typeof t.categorieId === 'string';
+    && typeof t.categorieId === 'string'
+    && typeof t.compteId === 'string'
+    && (t.type !== 'virement' || (typeof t.compteDestId === 'string' && t.compteDestId !== t.compteId));
   if (!valide) throw new Error(`La transaction n°${i + 1} du fichier est invalide.`);
 
   const transaction = {
     id: t.id,
     type: t.type,
     montant: t.montant,
-    categorieId: t.categorieId,
+    compteId: t.compteId,
+    categorieId: t.type === 'virement' ? '' : t.categorieId,
     date: t.date,
     note: typeof t.note === 'string' ? t.note.slice(0, 100) : '',
     creeLe: typeof t.creeLe === 'string' ? t.creeLe : '',
   };
+  if (t.type === 'virement') transaction.compteDestId = t.compteDestId;
   // Présent seulement sur les dépenses créées automatiquement par un abonnement
   if (typeof t.abonnementId === 'string') transaction.abonnementId = t.abonnementId;
   return transaction;
@@ -181,6 +225,7 @@ function validerAbonnement(a, i) {
     && typeof a.nom === 'string'
     && montantValide(a.montant)
     && typeof a.categorieId === 'string'
+    && typeof a.compteId === 'string'
     && Number.isInteger(a.jour) && a.jour >= 1 && a.jour <= 31
     && typeof a.actif === 'boolean'
     && typeof a.depuis === 'string' && FORMAT_DATE.test(a.depuis)
@@ -192,6 +237,7 @@ function validerAbonnement(a, i) {
     nom: a.nom.slice(0, 40),
     montant: a.montant,
     categorieId: a.categorieId,
+    compteId: a.compteId,
     jour: a.jour,
     actif: a.actif,
     depuis: a.depuis,
@@ -312,11 +358,71 @@ const Store = {
     const transaction = this.transaction(id);
     if (!transaction) return false;
     Object.assign(transaction, valeurs);
+    if (transaction.type !== 'virement') delete transaction.compteDestId;
     return this.sauvegarder();
   },
 
   supprimerTransaction(id) {
     this.donnees.transactions = this.donnees.transactions.filter((t) => t.id !== id);
+    return this.sauvegarder();
+  },
+
+  /* ---------- Comptes bancaires ---------- */
+
+  compte(id) {
+    return this.donnees.comptes.find((c) => c.id === id);
+  },
+
+  comptesActifs() {
+    return this.donnees.comptes.filter((c) => !c.archive);
+  },
+
+  /** Ce que les transactions ont ajouté (+) ou retiré (−) sur un compte. */
+  mouvementsCompte(compteId) {
+    let total = 0;
+    for (const t of this.donnees.transactions) {
+      if (t.type === 'revenu' && t.compteId === compteId) total += t.montant;
+      if (t.type === 'depense' && t.compteId === compteId) total -= t.montant;
+      if (t.type === 'virement') {
+        if (t.compteId === compteId) total -= t.montant;
+        if (t.compteDestId === compteId) total += t.montant;
+      }
+    }
+    return total;
+  },
+
+  /** Solde réel d'un compte : solde de départ + tous les mouvements. */
+  soldeCompte(compteId) {
+    const compte = this.compte(compteId);
+    return compte ? compte.soldeInitial + this.mouvementsCompte(compteId) : 0;
+  },
+
+  /**
+   * L'utilisateur indique toujours le solde ACTUEL du compte (ce qu'il voit sur l'appli
+   * de sa banque). On en déduit le solde de départ en retirant les mouvements déjà saisis.
+   */
+  ajouterCompte({ nom, icone, soldeActuel }) {
+    const id = genererId();
+    this.donnees.comptes.push({ id, nom, icone, soldeInitial: soldeActuel, archive: false, creeLe: new Date().toISOString() });
+    return this.sauvegarder();
+  },
+
+  modifierCompte(id, { nom, icone, soldeActuel, archive }) {
+    const compte = this.compte(id);
+    if (!compte) return false;
+    Object.assign(compte, { nom, icone, archive, soldeInitial: soldeActuel - this.mouvementsCompte(id) });
+    return this.sauvegarder();
+  },
+
+  /** Un compte encore utilisé par une transaction ou un abonnement ne peut pas être supprimé. */
+  compteUtilise(id) {
+    return this.donnees.transactions.some((t) => t.compteId === id || t.compteDestId === id)
+      || this.donnees.abonnements.some((a) => a.compteId === id);
+  },
+
+  supprimerCompte(id) {
+    if (this.compteUtilise(id)) return false;
+    this.donnees.comptes = this.donnees.comptes.filter((c) => c.id !== id);
     return this.sauvegarder();
   },
 
@@ -432,6 +538,7 @@ const Store = {
             type: 'depense',
             montant: abonnement.montant,
             categorieId: abonnement.categorieId,
+            compteId: abonnement.compteId,
             date,
             note: abonnement.nom,
             creeLe: new Date().toISOString(),

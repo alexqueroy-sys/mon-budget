@@ -33,7 +33,18 @@ function lireMontant(texte) {
   return centimes > 0 ? centimes : null;
 }
 
-/** Date locale -> "2026-10-18" (sans passer par l'UTC, qui peut décaler d'un jour) */
+/** Comme lireMontant, mais accepte 0 et les montants négatifs ("-120,50") : pour un solde de compte. */
+function lireMontantSigne(texte) {
+  const propre = String(texte).trim().replace(/\s/g, '').replace(/^[−–]/, '-');
+  const negatif = propre.startsWith('-');
+  const sansSigne = negatif ? propre.slice(1) : propre;
+  if (/^0+([.,]0{1,2})?$/.test(sansSigne)) return 0;
+  const centimes = lireMontant(sansSigne);
+  if (centimes === null) return null;
+  return negatif ? -centimes : centimes;
+}
+
+/** Date locale ->"2026-10-18" (sans passer par l'UTC, qui peut décaler d'un jour) */
 function dateVersTexte(date) {
   const a = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');

@@ -11,7 +11,8 @@ function descriptionAbonnement(abonnement) {
   if (!abonnement.actif) return '⏸️ En pause';
   const prochain = prochainPrelevement(abonnement);
   const jour = abonnement.jour === 1 ? '1er' : abonnement.jour;
-  return `Le ${jour} de chaque mois${prochain ? ` · prochain : ${formaterDateCourte(prochain)}` : ''}`;
+  const compte = plusieursComptes() ? ` · ${nomCompte(abonnement.compteId)}` : '';
+  return `Le ${jour} de chaque mois${prochain ? ` · prochain : ${formaterDateCourte(prochain)}` : ''}${compte}`;
 }
 
 function ligneAbonnement(abonnement) {
@@ -94,6 +95,8 @@ function ouvrirModaleAbonnement(abonnement = null) {
   elAbonnement.form.reset();
 
   champs.namedItem('categorieId').innerHTML = optionsCategories('depense', abonnement ? abonnement.categorieId : 'cat-abonnements');
+  champs.namedItem('compteId').innerHTML = optionsComptes(abonnement ? abonnement.compteId : comptePrincipalId());
+  document.getElementById('abonnement-compte').hidden = !plusieursComptes();
   champs.namedItem('nom').value = abonnement ? abonnement.nom : '';
   champs.namedItem('montant').value = abonnement ? centimesVersSaisie(abonnement.montant) : '';
   champs.namedItem('jour').value = abonnement ? abonnement.jour : new Date().getDate();
@@ -132,7 +135,11 @@ function brancherAbonnements() {
       return;
     }
 
-    const valeurs = { nom, montant, jour, categorieId: champs.namedItem('categorieId').value };
+    const valeurs = {
+      nom, montant, jour,
+      categorieId: champs.namedItem('categorieId').value,
+      compteId: champs.namedItem('compteId').value,
+    };
     const enEdition = etat.abonnementEnEdition;
     let ok;
 

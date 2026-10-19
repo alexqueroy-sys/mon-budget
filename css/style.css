@@ -367,7 +367,8 @@ a { color: var(--principal); }
 
 .bascule {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 4px;
   border-radius: 12px;
   background: var(--surface-2);
@@ -520,6 +521,57 @@ a { color: var(--principal); }
 .case input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--principal); flex: none; }
 .case small { display: block; color: var(--texte-doux); font-size: .8rem; }
 
+/* ---------- Comptes ---------- */
+
+.sous-titre {
+  margin: 24px 0 10px;
+  font-size: .8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--texte-doux);
+}
+
+.bloc--comptes { margin-top: 0; }
+
+#champs-comptes { grid-template-columns: 1fr 1fr; }
+
+.comptes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+
+.compte {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.compte__corps {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.compte__solde { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+.comptes__total { margin: 12px 0 0 !important; font-size: .95rem; }
+
+.ajout--trois { grid-template-columns: 1fr 1fr; }
+.ajout--trois .ajout__btn--virement { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; padding: 12px; }
+.ajout__btn--virement { background: var(--surface-2); color: var(--texte); box-shadow: none; border: 1px solid var(--bordure); }
+
+.bascule__option--virement input:checked + span { background: var(--texte-doux); color: var(--surface); }
+
+.filtres--comptes select:first-child { grid-column: 1 / -1; }
+
 /* ---------- Toast ---------- */
 
 .toast {
@@ -575,6 +627,10 @@ a { color: var(--principal); }
 
   .filtres { grid-template-columns: 1fr 1fr 2fr; }
   .filtres input { grid-column: auto; }
+  .filtres--comptes { grid-template-columns: 1fr 1fr 1fr 2fr; }
+  .filtres--comptes select:first-child { grid-column: auto; }
+
+  .comptes { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 
   .toast { bottom: 32px; }
 }

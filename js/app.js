@@ -12,8 +12,9 @@ const etat = {
   vue: 'accueil',
   annee: aujourdhui.getFullYear(),
   mois: aujourdhui.getMonth() + 1, // de 1 à 12
-  filtres: { type: 'tous', categorieId: 'toutes', recherche: '' },
+  filtres: { type: 'tous', categorieId: 'toutes', compteId: 'tous', recherche: '' },
   transactionEnEdition: null,
+  compteEnEdition: null,
   budgetEnEdition: null,   // id de la catégorie
   objectifEnEdition: null,
   versement: null,         // { objectifId, sens: 1 | -1 }
@@ -24,7 +25,7 @@ const etat = {
 const VUES = {
   accueil: {
     titre: 'Accueil', avecMois: true, rendre: rendreAccueil,
-    intro: "Le résumé de ton mois : ce qui est entré, ce qui est sorti, et où en sont tes budgets et ton épargne.",
+    intro: "L'argent sur tes comptes, puis le résumé de ton mois : ce qui est entré, ce qui est sorti, tes budgets et ton épargne.",
   },
   transactions: {
     titre: 'Transactions', avecMois: true, rendre: rendreTransactions,
@@ -141,6 +142,11 @@ function brancherEvenements() {
       ouvrirModale(null, ajout.dataset.ajouter);
       return;
     }
+    const voir = e.target.closest('[data-voir-compte]');
+    if (voir) {
+      voirCompte(voir.dataset.voirCompte);
+      return;
+    }
     const ligne = e.target.closest('[data-transaction]');
     if (ligne) {
       const transaction = Store.transaction(ligne.dataset.transaction);
@@ -160,12 +166,15 @@ function brancherEvenements() {
     }
     const action = e.target.closest('[data-action]');
     if (!action) return;
-    if (action.dataset.action === 'nouvel-abonnement') ouvrirModaleAbonnement();
-    else actionObjectif(action.dataset.action, action);
+    const nom = action.dataset.action;
+    if (nom === 'nouvel-abonnement') ouvrirModaleAbonnement();
+    else if (nom.endsWith('-compte')) actionCompte(nom, action);
+    else actionObjectif(nom, action);
   });
 
   el.form.addEventListener('change', (e) => {
-    if (e.target.name === 'type') remplirCategories(e.target.value);
+    if (e.target.name === 'type') adapterFormulaireAuType(e.target.value);
+    if (e.target.name === 'compteId' && champ('type').value === 'virement') remplirCompteDestination();
   });
   el.form.addEventListener('submit', enregistrerFormulaire);
   el.btnSupprimer.addEventListener('click', supprimerTransactionEnCours);
@@ -181,6 +190,7 @@ function brancherEvenements() {
     });
   });
 
+  brancherComptes();
   brancherBudgets();
   brancherObjectifs();
   brancherAbonnements();
@@ -190,12 +200,13 @@ function brancherEvenements() {
    Calculs
    ========================================================= */
 
+/** Les virements entre tes comptes ne sont ni des revenus ni des dépenses : ils sont ignorés. */
 function calculerTotaux(transactions) {
   let revenus = 0;
   let depenses = 0;
   for (const t of transactions) {
     if (t.type === 'revenu') revenus += t.montant;
-    else depenses += t.montant;
+    if (t.type === 'depense') depenses += t.montant;
   }
   return { revenus, depenses, solde: revenus - depenses };
 }
@@ -229,14 +240,33 @@ function rappelSauvegardeNecessaire() {
    Morceaux de HTML réutilisés
    ========================================================= */
 
+function nomCompte(id) {
+  const compte = Store.compte(id);
+  return compte ? compte.nom : 'Compte supprimé';
+}
+
 function ligneTransaction(t, { avecDate = false } = {}) {
-  const categorie = Store.categorie(t.categorieId);
+  const estVirement = t.type === 'virement';
   const estRevenu = t.type === 'revenu';
+  const categorie = estVirement
+    ? { nom: 'Virement', icone: '⇄', couleur: '#7a8b99' }
+    : Store.categorie(t.categorieId);
+
+  // Le compte n'est précisé que si tu en as plusieurs.
+  let compte = '';
+  if (estVirement) compte = `${nomCompte(t.compteId)} → ${nomCompte(t.compteDestId)}`;
+  else if (plusieursComptes()) compte = nomCompte(t.compteId);
+
   const sousTitre = [
     t.abonnementId ? '🔁' : '', // dépense créée automatiquement par un abonnement
     t.note,
+    compte,
     avecDate ? formaterDateCourte(t.date) : '',
   ].filter(Boolean).join(' · ').replace('🔁 · ', '🔁 ');
+
+  let signe = '−';
+  if (estRevenu) signe = '+';
+  if (estVirement) signe = '';
 
   return `
     <li>
@@ -246,8 +276,8 @@ function ligneTransaction(t, { avecDate = false } = {}) {
           <span class="ligne__titre">${echapper(categorie.nom)}</span>
           ${sousTitre ? `<span class="ligne__sous">${echapper(sousTitre)}</span>` : ''}
         </span>
-        <span class="ligne__montant ${estRevenu ? 'positif' : ''}">
-          ${estRevenu ? '+' : '−'}${formaterMontant(t.montant)}
+        <span class="ligne__montant ${estRevenu ? 'positif' : ''} ${estVirement ? 'texte-doux' : ''}">
+          ${signe}${formaterMontant(t.montant)}
         </span>
       </button>
     </li>`;
@@ -319,6 +349,9 @@ function rendreAccueil() {
        <ul class="liste">${abonnements.slice(0, 3).map(ligneAbonnement).join('')}</ul>`;
 
   el.vue.innerHTML = `
+    ${blocComptes()}
+
+    <h2 class="sous-titre">Ce mois-ci</h2>
     <section class="cartes">
       <div class="carte carte--solde">
         <span class="carte__label">Solde du mois</span>
@@ -385,21 +418,34 @@ function rendreAccueil() {
 function rendreTransactions() {
   const { filtres } = etat;
   const groupe = (type, libelle) => `<optgroup label="${libelle}">${optionsCategories(type, filtres.categorieId)}</optgroup>`;
+  const multi = plusieursComptes();
+  // Avec un seul compte, le filtre par compte n'a pas de sens.
+  if (!multi || (filtres.compteId !== 'tous' && !Store.compte(filtres.compteId))) filtres.compteId = 'tous';
 
   el.vue.innerHTML = `
-    <div class="ajout">
+    <div class="ajout ${multi ? 'ajout--trois' : ''}">
       <button type="button" class="ajout__btn ajout__btn--depense" data-ajouter="depense">
         <span class="ajout__signe" aria-hidden="true">−</span>Ajouter une dépense
       </button>
       <button type="button" class="ajout__btn ajout__btn--revenu" data-ajouter="revenu">
         <span class="ajout__signe" aria-hidden="true">+</span>Ajouter un revenu
       </button>
+      ${multi ? `
+        <button type="button" class="ajout__btn ajout__btn--virement" data-ajouter="virement">
+          <span class="ajout__signe" aria-hidden="true">⇄</span>Virement entre comptes
+        </button>` : ''}
     </div>
-    <div class="filtres">
+    <div class="filtres ${multi ? 'filtres--comptes' : ''}">
+      ${multi ? `
+        <select id="filtre-compte" aria-label="Filtrer par compte">
+          <option value="tous">Tous les comptes</option>
+          ${optionsComptes(filtres.compteId)}
+        </select>` : ''}
       <select id="filtre-type" aria-label="Filtrer par type">
         <option value="tous">Tout</option>
         <option value="depense">Dépenses</option>
         <option value="revenu">Revenus</option>
+        ${multi ? '<option value="virement">Virements</option>' : ''}
       </select>
       <select id="filtre-categorie" aria-label="Filtrer par catégorie">
         <option value="toutes">Toutes catégories</option>
@@ -414,6 +460,12 @@ function rendreTransactions() {
   const filtreCategorie = document.getElementById('filtre-categorie');
   const filtreRecherche = document.getElementById('filtre-recherche');
 
+  const filtreCompte = document.getElementById('filtre-compte');
+  if (filtreCompte) {
+    filtreCompte.value = filtres.compteId;
+    filtreCompte.addEventListener('change', () => { filtres.compteId = filtreCompte.value; rendreListeTransactions(); });
+  }
+
   filtreType.value = filtres.type;
   filtreType.addEventListener('change', () => { filtres.type = filtreType.value; rendreListeTransactions(); });
   filtreCategorie.addEventListener('change', () => { filtres.categorieId = filtreCategorie.value; rendreListeTransactions(); });
@@ -425,15 +477,17 @@ function rendreTransactions() {
 
 function rendreListeTransactions() {
   const conteneur = document.getElementById('liste-transactions');
-  const { type, categorieId, recherche } = etat.filtres;
+  const { type, categorieId, compteId, recherche } = etat.filtres;
   const texteRecherche = normaliser(recherche.trim());
   const duMois = Store.transactionsDuMois(etat.annee, etat.mois);
 
   const liste = duMois.filter((t) => {
     if (type !== 'tous' && t.type !== type) return false;
     if (categorieId !== 'toutes' && t.categorieId !== categorieId) return false;
+    if (compteId !== 'tous' && t.compteId !== compteId && t.compteDestId !== compteId) return false;
     if (texteRecherche) {
-      const texte = normaliser(`${t.note} ${Store.categorie(t.categorieId).nom}`);
+      const nom = t.type === 'virement' ? 'Virement' : Store.categorie(t.categorieId).nom;
+      const texte = normaliser(`${t.note} ${nom}`);
       if (!texte.includes(texteRecherche)) return false;
     }
     return true;
@@ -470,7 +524,7 @@ function rendreListeTransactions() {
    ========================================================= */
 
 function rendreParametres() {
-  const { transactions, categories, budgets, objectifs, abonnements, derniereSauvegarde } = Store.donnees;
+  const { transactions, categories, comptes, budgets, objectifs, abonnements, derniereSauvegarde } = Store.donnees;
   const compter = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
   const libelleSauvegarde = derniereSauvegarde
     ? new Date(derniereSauvegarde).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -498,7 +552,7 @@ function rendreParametres() {
     <section class="bloc">
       <h2>Mes données</h2>
       <p>
-        Enregistrés dans ce navigateur : ${compter(transactions.length, 'transaction')},
+        Enregistrés dans ce navigateur : ${compter(comptes.length, 'compte')}, ${compter(transactions.length, 'transaction')},
         ${compter(budgets.length, 'budget')}, ${compter(objectifs.length, 'objectif')} d'épargne
         et ${compter(abonnements.length, 'abonnement')}.
       </p>
@@ -578,14 +632,44 @@ function dateParDefaut() {
   return jour.startsWith(moisAffiche) ? jour : `${moisAffiche}-01`;
 }
 
-/** Sans transaction : nouvelle transaction du type demandé ('depense' ou 'revenu'). */
+/**
+ * Montre ou cache les champs selon le type :
+ * - virement : compte de départ + compte d'arrivée, pas de catégorie ;
+ * - dépense / revenu : catégorie, et le compte seulement si tu en as plusieurs.
+ */
+function adapterFormulaireAuType(type, categorieId) {
+  const virement = type === 'virement';
+  const multi = plusieursComptes();
+
+  document.getElementById('champ-categorie').hidden = virement;
+  document.getElementById('champs-comptes').hidden = !multi && !virement;
+  document.getElementById('champ-compte-dest').hidden = !virement;
+  document.getElementById('libelle-compte').textContent = virement ? 'Depuis' : 'Compte';
+
+  if (!virement) remplirCategories(type, categorieId);
+  else remplirCompteDestination();
+}
+
+/** Le compte d'arrivée d'un virement ne peut pas être le compte de départ. */
+function remplirCompteDestination(selection) {
+  const depart = champ('compteId').value;
+  const actuel = selection || champ('compteDestId').value;
+  champ('compteDestId').innerHTML = optionsComptes(actuel, { sauf: depart });
+}
+
+/** Sans transaction : nouvelle transaction du type demandé ('depense', 'revenu' ou 'virement'). */
 function ouvrirModale(transaction = null, typeNouvelle = 'depense') {
   etat.transactionEnEdition = transaction;
   el.form.reset();
 
   const type = transaction ? transaction.type : typeNouvelle;
+  // Nouvelle transaction : sur le compte filtré dans la liste, sinon le compte principal.
+  const compteParDefaut = etat.filtres.compteId !== 'tous' ? etat.filtres.compteId : comptePrincipalId();
+  champ('compteId').innerHTML = optionsComptes(transaction ? transaction.compteId : compteParDefaut);
   champ('type').value = type;
-  remplirCategories(type, transaction && transaction.categorieId);
+  document.getElementById('option-virement').hidden = !plusieursComptes() && type !== 'virement';
+  adapterFormulaireAuType(type, transaction && transaction.categorieId);
+  if (type === 'virement') remplirCompteDestination(transaction && transaction.compteDestId);
   champ('montant').value = transaction ? centimesVersSaisie(transaction.montant) : '';
   champ('date').value = transaction ? transaction.date : dateParDefaut();
   champ('note').value = transaction ? transaction.note : '';
@@ -614,13 +698,22 @@ function enregistrerFormulaire(e) {
     return;
   }
 
+  const type = champ('type').value;
   const valeurs = {
-    type: champ('type').value,
+    type,
     montant,
-    categorieId: champ('categorieId').value,
+    compteId: champ('compteId').value,
+    categorieId: type === 'virement' ? '' : champ('categorieId').value,
     date,
     note: champ('note').value.trim(),
   };
+  if (type === 'virement') {
+    valeurs.compteDestId = champ('compteDestId').value;
+    if (!valeurs.compteDestId || valeurs.compteDestId === valeurs.compteId) {
+      el.formErreur.textContent = 'Choisis deux comptes différents pour le virement.';
+      return;
+    }
+  }
 
   const enEdition = etat.transactionEnEdition;
   const ok = enEdition
