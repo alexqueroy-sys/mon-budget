@@ -333,6 +333,16 @@ const Store = {
     return this.donnees.categories.find((c) => c.id === id) || CATEGORIE_INCONNUE;
   },
 
+  /** Crée une catégorie et renvoie son id. Sa couleur est choisie parmi celles pas encore prises. */
+  ajouterCategorie({ nom, icone, type }) {
+    const palette = ['#e0a33f', '#4fae6b', '#c75bd2', '#3fb3c8', '#d26a45', '#6b7fd6', '#a3a83f', '#d24562'];
+    const prises = new Set(this.donnees.categories.map((c) => c.couleur));
+    const couleur = palette.find((c) => !prises.has(c)) || palette[this.donnees.categories.length % palette.length];
+    const id = `cat-${genererId()}`;
+    this.donnees.categories.push({ id, nom, icone, type, couleur });
+    return this.sauvegarder() ? id : null;
+  },
+
   categoriesDuType(type) {
     return this.donnees.categories.filter((c) => c.type === type);
   },

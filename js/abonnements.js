@@ -96,7 +96,6 @@ function ouvrirModaleAbonnement(abonnement = null) {
 
   champs.namedItem('categorieId').innerHTML = optionsCategories('depense', abonnement ? abonnement.categorieId : 'cat-abonnements');
   champs.namedItem('compteId').innerHTML = optionsComptes(abonnement ? abonnement.compteId : comptePrincipalId());
-  document.getElementById('abonnement-compte').hidden = !plusieursComptes();
   champs.namedItem('nom').value = abonnement ? abonnement.nom : '';
   champs.namedItem('montant').value = abonnement ? centimesVersSaisie(abonnement.montant) : '';
   champs.namedItem('jour').value = abonnement ? abonnement.jour : new Date().getDate();

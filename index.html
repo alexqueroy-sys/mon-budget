@@ -64,7 +64,7 @@
         <label class="bascule__option bascule__option--revenu">
           <input type="radio" name="type" value="revenu"><span>Revenu</span>
         </label>
-        <!-- Visible seulement avec au moins 2 comptes -->
+        <!-- Visible seulement avec au moins 2 comptes (sinon le bouton « Virement » propose d'en créer un) -->
         <label class="bascule__option bascule__option--virement" id="option-virement">
           <input type="radio" name="type" value="virement"><span>Virement</span>
         </label>
@@ -75,7 +75,7 @@
         <input class="champ__montant" name="montant" inputmode="decimal" autocomplete="off" placeholder="0,00">
       </label>
 
-      <!-- Les champs « compte » n'apparaissent qu'avec au moins 2 comptes -->
+      <!-- « Vers » n'apparaît que pour un virement -->
       <div class="champs-cote" id="champs-comptes">
         <label class="champ" id="champ-compte">
           <span class="champ__label" id="libelle-compte">Compte</span>
@@ -116,6 +116,22 @@
   <dialog id="modale-budget" class="modale" aria-labelledby="budget-titre">
     <form id="form-budget" novalidate>
       <h2 id="budget-titre">Budget</h2>
+
+      <!-- Seulement pour « Ajouter un budget » -->
+      <label class="champ" id="budget-choix-categorie" hidden>
+        <span class="champ__label">Catégorie</span>
+        <select name="categorieId"></select>
+      </label>
+
+      <div id="budget-nouvelle-categorie" class="nouvelle-categorie" hidden>
+        <label class="champ">
+          <span class="champ__label">Nom de la nouvelle catégorie</span>
+          <input name="nomCategorie" maxlength="40" autocomplete="off" placeholder="ex. Essence, Cadeaux, Animaux">
+        </label>
+        <fieldset class="choix-icones" id="budget-icones">
+          <legend class="champ__label">Icône</legend>
+        </fieldset>
+      </div>
 
       <label class="champ">
         <span class="champ__label">Limite par mois (€)</span>

@@ -534,7 +534,11 @@ a { color: var(--principal); }
 
 .bloc--comptes { margin-top: 0; }
 
+.nouvelle-categorie { display: grid; gap: 14px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+.nouvelle-categorie .choix-icones span { background: var(--surface); }
+
 #champs-comptes { grid-template-columns: 1fr 1fr; }
+#champs-comptes.champs-cote--seul { grid-template-columns: 1fr; }
 
 .comptes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
 

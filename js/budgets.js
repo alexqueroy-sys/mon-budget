@@ -73,7 +73,7 @@ function rendreBudgets() {
   }
 
   const htmlBudgets = suivis.length === 0
-    ? `<p class="vide">Aucun budget pour l'instant.<br>Choisis une catégorie ci-dessous et fixe-lui une limite par mois.</p>`
+    ? `<p class="vide">Aucun budget pour l'instant.<br>Clique sur « Ajouter un budget » ou sur « Définir » à côté d'une catégorie.</p>`
     : `<ul class="liste">${suivis.map(ligneBudget).join('')}</ul>`;
 
   const htmlSansBudget = sansBudget.map((c) => {
@@ -87,6 +87,11 @@ function rendreBudgets() {
   }).join('');
 
   el.vue.innerHTML = `
+    <div class="ajout ajout--seul">
+      <button type="button" class="ajout__btn ajout__btn--principal" data-action="nouveau-budget">
+        <span class="ajout__signe" aria-hidden="true">+</span>Ajouter un budget
+      </button>
+    </div>
     ${htmlResume}
     <section class="bloc">
       <h2>Mes budgets</h2>
@@ -105,10 +110,56 @@ const elBudget = {
   modale: document.getElementById('modale-budget'),
   form: document.getElementById('form-budget'),
   titre: document.getElementById('budget-titre'),
+  choixCategorie: document.getElementById('budget-choix-categorie'),
+  nouvelleCategorie: document.getElementById('budget-nouvelle-categorie'),
+  icones: document.getElementById('budget-icones'),
   aide: document.getElementById('budget-aide'),
   erreur: document.getElementById('budget-erreur'),
   btnSupprimer: document.getElementById('budget-supprimer'),
 };
+
+const NOUVELLE_CATEGORIE = '__nouvelle';
+const ICONES_CATEGORIE = ['⛽', '🍔', '☕', '🎁', '👕', '💇', '🏋️', '🎮', '📚', '🐶', '🍷', '✈️', '🧾', '🔧', '👶'];
+
+function texteAideBudget(categorieId) {
+  const moyenne = categorieId ? moyenneTroisDerniersMois(categorieId) : 0;
+  return moyenne > 0
+    ? `Pour t'aider : tu as dépensé en moyenne ${formaterMontant(moyenne)} par mois sur les 3 derniers mois.`
+    : '';
+}
+
+/** Montre les champs « nouvelle catégorie » quand on choisit « ➕ Nouvelle catégorie… ». */
+function adapterChoixCategorie() {
+  const choix = elBudget.form.elements.namedItem('categorieId').value;
+  const nouvelle = choix === NOUVELLE_CATEGORIE;
+  elBudget.nouvelleCategorie.hidden = !nouvelle;
+  elBudget.aide.textContent = nouvelle ? '' : texteAideBudget(choix);
+}
+
+/**
+ * Ajouter un budget : sur une catégorie qui n'en a pas encore,
+ * ou sur une nouvelle catégorie créée au passage (ex. « Essence »).
+ */
+function ouvrirModaleNouveauBudget() {
+  etat.budgetEnEdition = null;
+  const champs = elBudget.form.elements;
+  elBudget.form.reset();
+
+  const libres = Store.categoriesDuType('depense').filter((c) => Store.budget(c.id) === null);
+  champs.namedItem('categorieId').innerHTML = libres
+    .map((c) => `<option value="${echapper(c.id)}">${echapper(c.icone)} ${echapper(c.nom)}</option>`)
+    .join('') + `<option value="${NOUVELLE_CATEGORIE}">➕ Nouvelle catégorie…</option>`;
+  champs.namedItem('icone').value = ICONES_CATEGORIE[0];
+
+  elBudget.titre.textContent = 'Nouveau budget';
+  elBudget.choixCategorie.hidden = false;
+  elBudget.erreur.textContent = '';
+  elBudget.btnSupprimer.hidden = true;
+  adapterChoixCategorie();
+
+  elBudget.modale.showModal();
+  champs.namedItem('categorieId').focus();
+}
 
 /** Moyenne des dépenses d'une catégorie sur les 3 mois avant le mois affiché. */
 function moyenneTroisDerniersMois(categorieId) {
@@ -123,15 +174,14 @@ function moyenneTroisDerniersMois(categorieId) {
 function ouvrirModaleBudget(categorieId) {
   const categorie = Store.categorie(categorieId);
   const budget = Store.budget(categorieId);
-  const moyenne = moyenneTroisDerniersMois(categorieId);
 
   etat.budgetEnEdition = categorieId;
   elBudget.form.reset();
   elBudget.titre.textContent = `Budget · ${categorie.icone} ${categorie.nom}`;
+  elBudget.choixCategorie.hidden = true;
+  elBudget.nouvelleCategorie.hidden = true;
   elBudget.form.elements.namedItem('montant').value = budget ? centimesVersSaisie(budget) : '';
-  elBudget.aide.textContent = moyenne > 0
-    ? `Pour t'aider : tu as dépensé en moyenne ${formaterMontant(moyenne)} par mois sur les 3 derniers mois.`
-    : '';
+  elBudget.aide.textContent = texteAideBudget(categorieId);
   elBudget.erreur.textContent = '';
   elBudget.btnSupprimer.hidden = budget === null;
 
@@ -140,17 +190,47 @@ function ouvrirModaleBudget(categorieId) {
 }
 
 function brancherBudgets() {
+  elBudget.icones.insertAdjacentHTML('beforeend', ICONES_CATEGORIE.map((icone) => `
+    <label><input type="radio" name="icone" value="${icone}"><span>${icone}</span></label>`).join(''));
+
+  elBudget.form.addEventListener('change', (e) => {
+    if (e.target.name === 'categorieId') adapterChoixCategorie();
+  });
+
   elBudget.form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const montant = lireMontant(elBudget.form.elements.namedItem('montant').value);
+    const champs = elBudget.form.elements;
+    const montant = lireMontant(champs.namedItem('montant').value);
+    let categorieId = etat.budgetEnEdition || champs.namedItem('categorieId').value;
+    const creation = categorieId === NOUVELLE_CATEGORIE;
+
+    if (creation) {
+      const nom = champs.namedItem('nomCategorie').value.trim();
+      if (!nom) {
+        elBudget.erreur.textContent = 'Donne un nom à la nouvelle catégorie (ex. Essence).';
+        return;
+      }
+      const existe = Store.categoriesDuType('depense').some((c) => normaliser(c.nom) === normaliser(nom));
+      if (existe) {
+        elBudget.erreur.textContent = 'Une catégorie porte déjà ce nom : choisis-la dans la liste.';
+        return;
+      }
+      if (montant === null) {
+        elBudget.erreur.textContent = 'Indique un montant valide, par exemple 150.';
+        return;
+      }
+      categorieId = Store.ajouterCategorie({ nom, icone: champs.namedItem('icone').value || ICONES_CATEGORIE[0], type: 'depense' });
+    }
+
     if (montant === null) {
       elBudget.erreur.textContent = 'Indique un montant valide, par exemple 150.';
       return;
     }
-    const ok = Store.definirBudget(etat.budgetEnEdition, montant);
+    const ok = Boolean(categorieId) && Store.definirBudget(categorieId, montant);
     elBudget.modale.close();
     afficher();
-    afficherToast(ok ? 'Budget enregistré ✔' : "⚠️ Impossible d'enregistrer.");
+    if (!ok) afficherToast("⚠️ Impossible d'enregistrer.");
+    else afficherToast(creation ? 'Catégorie et budget créés ✔' : 'Budget enregistré ✔');
   });
 
   elBudget.btnSupprimer.addEventListener('click', () => {

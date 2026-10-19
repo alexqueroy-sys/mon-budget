@@ -139,6 +139,12 @@ function brancherEvenements() {
   el.vue.addEventListener('click', (e) => {
     const ajout = e.target.closest('[data-ajouter]');
     if (ajout) {
+      if (ajout.dataset.ajouter === 'virement' && !plusieursComptes()) {
+        // Un virement demande 2 comptes : on propose directement d'en créer un deuxième.
+        afficherToast('Pour faire un virement, il te faut au moins 2 comptes : crée le deuxième ici.', 4500);
+        ouvrirModaleCompte();
+        return;
+      }
       ouvrirModale(null, ajout.dataset.ajouter);
       return;
     }
@@ -168,6 +174,7 @@ function brancherEvenements() {
     if (!action) return;
     const nom = action.dataset.action;
     if (nom === 'nouvel-abonnement') ouvrirModaleAbonnement();
+    else if (nom === 'nouveau-budget') ouvrirModaleNouveauBudget();
     else if (nom.endsWith('-compte')) actionCompte(nom, action);
     else actionObjectif(nom, action);
   });
@@ -423,17 +430,16 @@ function rendreTransactions() {
   if (!multi || (filtres.compteId !== 'tous' && !Store.compte(filtres.compteId))) filtres.compteId = 'tous';
 
   el.vue.innerHTML = `
-    <div class="ajout ${multi ? 'ajout--trois' : ''}">
+    <div class="ajout ajout--trois">
       <button type="button" class="ajout__btn ajout__btn--depense" data-ajouter="depense">
         <span class="ajout__signe" aria-hidden="true">−</span>Ajouter une dépense
       </button>
       <button type="button" class="ajout__btn ajout__btn--revenu" data-ajouter="revenu">
         <span class="ajout__signe" aria-hidden="true">+</span>Ajouter un revenu
       </button>
-      ${multi ? `
-        <button type="button" class="ajout__btn ajout__btn--virement" data-ajouter="virement">
-          <span class="ajout__signe" aria-hidden="true">⇄</span>Virement entre comptes
-        </button>` : ''}
+      <button type="button" class="ajout__btn ajout__btn--virement" data-ajouter="virement">
+        <span class="ajout__signe" aria-hidden="true">⇄</span>Virement entre comptes
+      </button>
     </div>
     <div class="filtres ${multi ? 'filtres--comptes' : ''}">
       ${multi ? `
@@ -564,7 +570,7 @@ function rendreParametres() {
       <div class="puces">${puces('depense')}</div>
       <p class="texte-doux">Revenus</p>
       <div class="puces">${puces('revenu')}</div>
-      <p class="texte-doux">La personnalisation des catégories arrivera dans une prochaine version.</p>
+      <p class="texte-doux">Tu peux créer une catégorie de dépense depuis Budgets → « Ajouter un budget ». La modification des catégories arrivera dans une prochaine version.</p>
     </section>`;
 
   const fichierImport = document.getElementById('fichier-import');
@@ -635,16 +641,17 @@ function dateParDefaut() {
 /**
  * Montre ou cache les champs selon le type :
  * - virement : compte de départ + compte d'arrivée, pas de catégorie ;
- * - dépense / revenu : catégorie, et le compte seulement si tu en as plusieurs.
+ * - dépense / revenu : catégorie et compte.
  */
 function adapterFormulaireAuType(type, categorieId) {
   const virement = type === 'virement';
-  const multi = plusieursComptes();
+  const libelles = { depense: 'Payé avec le compte', revenu: "Ajouter l'argent sur le compte", virement: 'Depuis' };
 
   document.getElementById('champ-categorie').hidden = virement;
-  document.getElementById('champs-comptes').hidden = !multi && !virement;
   document.getElementById('champ-compte-dest').hidden = !virement;
-  document.getElementById('libelle-compte').textContent = virement ? 'Depuis' : 'Compte';
+  // Sans virement, le compte prend toute la largeur.
+  document.getElementById('champs-comptes').classList.toggle('champs-cote--seul', !virement);
+  document.getElementById('libelle-compte').textContent = libelles[type];
 
   if (!virement) remplirCategories(type, categorieId);
   else remplirCompteDestination();
