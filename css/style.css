@@ -108,7 +108,8 @@ a { color: var(--principal); }
 .contenu {
   max-width: 760px;
   margin: 0 auto;
-  padding: 16px 16px calc(90px + env(safe-area-inset-bottom));
+  /* En app installée sur iPhone, la barre d'état (heure, batterie) passe par-dessus le haut de l'écran */
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom));
 }
 
 .entete {
@@ -661,6 +662,29 @@ a { color: var(--principal); }
 .barres__barre { flex: none; min-width: 2px; height: 14px; border-radius: 0 4px 4px 0; background: var(--serie-depenses); }
 .barres__valeur { flex: none; font-size: .85rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* ---------- App installable ---------- */
+
+.etapes { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 4px; }
+
+.bandeau-maj {
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 21;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--bordure);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .2);
+  font-size: .9rem;
+}
+
 /* ---------- Toast ---------- */
 
 .toast {
@@ -722,4 +746,5 @@ a { color: var(--principal); }
   .comptes { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 
   .toast { bottom: 32px; }
+  .bandeau-maj { bottom: 32px; }
 }

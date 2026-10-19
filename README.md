@@ -20,7 +20,18 @@ de les sauvegarder ou de les transférer sur un autre appareil.
 
 ## Lancer l'application
 
-Aucune installation : ouvre `index.html` dans un navigateur.
+**En ligne :** https://alexqueroy-sys.github.io/mon-budget/
+
+L'application s'installe sur téléphone comme une vraie app (PWA) et fonctionne hors connexion :
+- Android (Chrome) : menu ⋮ → « Installer l'application »
+- iPhone (Safari) : Partager → « Sur l'écran d'accueil »
+
+En local, sans installation : ouvre `index.html` dans un navigateur.
+
+## Mettre en ligne une nouvelle version
+
+1. Augmenter `VERSION` dans `sw.js` (et y ajouter tout nouveau fichier).
+2. `git push` : GitHub Pages publie automatiquement. Les apps installées proposent « Mettre à jour ».
 
 ## Technique
 
@@ -40,4 +51,7 @@ Aucune installation : ouvre `index.html` dans un navigateur.
 | `js/objectifs.js` | Écran Épargne |
 | `js/abonnements.js` | Écran Abonnements |
 | `js/statistiques.js` | Écran Statistiques et graphiques (SVG fait main, sans bibliothèque) |
+| `js/pwa.js` | App installable : service worker, mises à jour, installation |
 | `js/app.js` | Navigation, Accueil, Transactions, Paramètres |
+| `sw.js` | Service worker : copie locale des fichiers pour l'usage hors ligne |
+| `manifest.webmanifest` | Nom, couleurs et icônes de l'app installée |

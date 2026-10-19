@@ -89,6 +89,7 @@ function demarrer() {
   }
 
   brancherEvenements();
+  demarrerPwa();
   allerDepuisAdresse();
 }
 
@@ -564,6 +565,8 @@ function rendreParametres() {
       </div>
     </section>
 
+    ${htmlInstallation()}
+
     <section class="bloc">
       <h2>Mes données</h2>
       <p>
@@ -581,6 +584,8 @@ function rendreParametres() {
       <div class="puces">${puces('revenu')}</div>
       <p class="texte-doux">Tu peux créer une catégorie de dépense depuis Budgets → « Ajouter un budget ». La modification des catégories arrivera dans une prochaine version.</p>
     </section>`;
+
+  brancherInstallation();
 
   const fichierImport = document.getElementById('fichier-import');
   document.getElementById('btn-exporter').addEventListener('click', exporterDonnees);
