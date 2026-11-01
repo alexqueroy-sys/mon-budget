@@ -498,6 +498,8 @@ a { color: var(--principal); }
 }
 .ligne-budget:hover { background: var(--surface-2); }
 
+.ligne-budget__jour { margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: var(--surface-2); font-size: .85rem; }
+
 .ligne-budget__bas {
   display: flex;
   justify-content: space-between;

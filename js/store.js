@@ -11,7 +11,7 @@
      transactions: [{ id, type: 'depense' | 'revenu' | 'virement', montant (centimes), compteId,
                       compteDestId (virement seulement : compte qui reçoit), categorieId ('' pour un virement),
                       date: 'AAAA-MM-JJ', note, creeLe, abonnementId? }],
-     budgets: [{ categorieId, montant (centimes par mois) }],
+     budgets: [{ categorieId, montant (centimes par mois), joursOuvres (lundi-vendredi seulement) }],
      objectifs: [{ id, nom, icone, cible (centimes), dateLimite: 'AAAA-MM-JJ' | null, creeLe,
                    versements: [{ id, montant (centimes, négatif = retrait), date }] }],
      abonnements: [{ id, type: 'depense' | 'revenu', nom, montant (centimes par mois), categorieId, compteId, jour (1 à 31), actif,
@@ -139,7 +139,8 @@ function validerBudget(b, i) {
   if (!b || typeof b.categorieId !== 'string' || !montantValide(b.montant)) {
     throw new Error(`Le budget n°${i + 1} du fichier est invalide.`);
   }
-  return { categorieId: b.categorieId, montant: b.montant };
+  // joursOuvres : le budget se répartit sur les jours de semaine seulement (ex. repas du midi)
+  return { categorieId: b.categorieId, montant: b.montant, joursOuvres: b.joursOuvres === true };
 }
 
 function validerObjectif(o, i) {
@@ -475,10 +476,10 @@ const Store = {
     return budget ? budget.montant : null;
   },
 
-  definirBudget(categorieId, montant) {
+  definirBudget(categorieId, montant, joursOuvres = false) {
     const existant = this.donnees.budgets.find((b) => b.categorieId === categorieId);
-    if (existant) existant.montant = montant;
-    else this.donnees.budgets.push({ categorieId, montant });
+    if (existant) Object.assign(existant, { montant, joursOuvres });
+    else this.donnees.budgets.push({ categorieId, montant, joursOuvres });
     return this.sauvegarder();
   },
 

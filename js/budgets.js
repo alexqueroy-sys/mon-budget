@@ -13,24 +13,59 @@ function etatBudget(depense, budget) {
   return 'ok';
 }
 
+/**
+ * Jours qu'il reste dans le mois, aujourd'hui compris (0 pour un mois passé).
+ * Avec joursOuvres, on ne compte que du lundi au vendredi.
+ */
+function joursRestantsDuMois(annee, mois, joursOuvres) {
+  const aujourdhui = texteVersDate(dateDuJour());
+  const fin = new Date(annee, mois, 0);
+  const jour = new Date(Math.max(aujourdhui, new Date(annee, mois - 1, 1)));
+  let compte = 0;
+  while (jour <= fin) {
+    const semaine = jour.getDay() !== 0 && jour.getDay() !== 6;
+    if (!joursOuvres || semaine) compte += 1;
+    jour.setDate(jour.getDate() + 1);
+  }
+  return compte;
+}
+
 /** Budgets du mois affiché, avec ce qui a été dépensé, les plus « consommés » d'abord. */
 function suiviBudgets(annee, mois) {
   const depenses = totauxDepensesParCategorie(Store.transactionsDuMois(annee, mois));
   return Store.donnees.budgets
     .map((b) => {
       const depense = depenses.get(b.categorieId) || 0;
-      return { categorie: Store.categorie(b.categorieId), budget: b.montant, depense, etat: etatBudget(depense, b.montant) };
+      return {
+        categorie: Store.categorie(b.categorieId),
+        budget: b.montant,
+        depense,
+        etat: etatBudget(depense, b.montant),
+        joursOuvres: b.joursOuvres,
+        joursRestants: joursRestantsDuMois(annee, mois, b.joursOuvres),
+      };
     })
     .sort((a, b) => b.depense / b.budget - a.depense / a.budget);
 }
 
 /** Ligne avec barre de progression, utilisée sur l'écran Budgets et sur l'Accueil. */
-function ligneBudget({ categorie, budget, depense, etat }) {
+function ligneBudget({ categorie, budget, depense, etat, joursOuvres, joursRestants }) {
   const pourcentage = Math.round((depense / budget) * 100);
   const reste = budget - depense;
   const texteReste = reste >= 0
     ? `Reste ${formaterMontant(reste)}`
     : `Dépassé de ${formaterMontant(-reste)}`;
+
+  // Ce qu'on peut encore dépenser chaque jour d'ici la fin du mois (arrondi vers le bas, par prudence).
+  let parJour = '';
+  if (reste > 0 && joursRestants > 0) {
+    const montant = Math.floor(reste / joursRestants);
+    const s = joursRestants > 1 ? 's' : '';
+    const unite = joursOuvres ? 'jour de semaine' : 'jour';
+    const restants = joursOuvres ? `jour${s} de semaine restant${s}` : `jour${s} restant${s}`;
+    parJour = `<div class="ligne-budget__jour">👉 <strong>${formaterMontant(montant)}</strong> par ${unite}`
+      + ` · ${joursRestants} ${restants}</div>`;
+  }
 
   return `
     <li>
@@ -44,6 +79,7 @@ function ligneBudget({ categorie, budget, depense, etat }) {
           <span class="texte-${etat}">${texteReste}</span>
           <span>${pourcentage} %</span>
         </div>
+        ${parJour}
       </button>
     </li>`;
 }
@@ -181,6 +217,8 @@ function ouvrirModaleBudget(categorieId) {
   elBudget.choixCategorie.hidden = true;
   elBudget.nouvelleCategorie.hidden = true;
   elBudget.form.elements.namedItem('montant').value = budget ? centimesVersSaisie(budget) : '';
+  const existant = Store.donnees.budgets.find((b) => b.categorieId === categorieId);
+  elBudget.form.elements.namedItem('joursOuvres').checked = Boolean(existant && existant.joursOuvres);
   elBudget.aide.textContent = texteAideBudget(categorieId);
   elBudget.erreur.textContent = '';
   elBudget.btnSupprimer.hidden = budget === null;
@@ -226,7 +264,7 @@ function brancherBudgets() {
       elBudget.erreur.textContent = 'Indique un montant valide, par exemple 150.';
       return;
     }
-    const ok = Boolean(categorieId) && Store.definirBudget(categorieId, montant);
+    const ok = Boolean(categorieId) && Store.definirBudget(categorieId, montant, champs.namedItem('joursOuvres').checked);
     elBudget.modale.close();
     afficher();
     if (!ok) afficherToast("⚠️ Impossible d'enregistrer.");
