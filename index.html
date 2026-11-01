@@ -242,9 +242,18 @@
     <form id="form-abonnement" novalidate>
       <h2 id="abonnement-titre">Nouvel abonnement</h2>
 
+      <div class="bascule" role="radiogroup" aria-label="Type">
+        <label class="bascule__option bascule__option--depense">
+          <input type="radio" name="type" value="depense" checked><span>Je paie</span>
+        </label>
+        <label class="bascule__option bascule__option--revenu">
+          <input type="radio" name="type" value="revenu"><span>Je reçois</span>
+        </label>
+      </div>
+
       <label class="champ">
         <span class="champ__label">Nom</span>
-        <input name="nom" maxlength="40" autocomplete="off" placeholder="ex. Spotify, forfait, salle de sport">
+        <input name="nom" maxlength="40" autocomplete="off" placeholder="ex. Spotify, forfait, loyer">
       </label>
 
       <label class="champ">
@@ -264,14 +273,14 @@
       </div>
 
       <label class="champ" id="abonnement-compte">
-        <span class="champ__label">Prélevé sur le compte</span>
+        <span class="champ__label" id="abonnement-libelle-compte">Prélevé sur le compte</span>
         <select name="compteId"></select>
       </label>
 
       <label class="case" id="abonnement-mois-actuel">
         <input type="checkbox" name="moisActuel">
         <span>
-          Compter aussi le prélèvement de ce mois-ci
+          <span id="abonnement-libelle-mois">Compter aussi le prélèvement de ce mois-ci</span>
           <small>Décoche si tu l'as déjà noté dans tes transactions.</small>
         </span>
       </label>

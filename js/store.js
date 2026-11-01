@@ -14,7 +14,7 @@
      budgets: [{ categorieId, montant (centimes par mois) }],
      objectifs: [{ id, nom, icone, cible (centimes), dateLimite: 'AAAA-MM-JJ' | null, creeLe,
                    versements: [{ id, montant (centimes, négatif = retrait), date }] }],
-     abonnements: [{ id, nom, montant (centimes par mois), categorieId, compteId, jour (1 à 31), actif,
+     abonnements: [{ id, type: 'depense' | 'revenu', nom, montant (centimes par mois), categorieId, compteId, jour (1 à 31), actif,
                      depuis: 'AAAA-MM-JJ' (aucun prélèvement avant cette date),
                      dernierMoisGenere: 'AAAA-MM' | null }],
      derniereSauvegarde: '2026-10-18T…' | null
@@ -25,7 +25,7 @@
    ========================================================= */
 
 const CLE_STOCKAGE = 'mon-budget.donnees';
-const VERSION_DONNEES = 4;
+const VERSION_DONNEES = 5;
 const TYPES = ['depense', 'revenu'];                    // types de catégorie
 const TYPES_TRANSACTION = [...TYPES, 'virement'];       // un virement va d'un de tes comptes à un autre
 const COMPTE_PRINCIPAL = { id: 'cpt-principal', nom: 'Compte principal', icone: '🏦' };
@@ -101,6 +101,15 @@ function validerEtMigrer(d) {
       transactions: avecCompte(d.transactions),
       abonnements: avecCompte(d.abonnements),
       version: 4,
+    };
+  }
+  if (d.version === 4) {
+    // Les abonnements peuvent maintenant aussi être des revenus (salaire, APL…) :
+    // ceux qui existaient étaient tous des dépenses.
+    d = {
+      ...d,
+      abonnements: Array.isArray(d.abonnements) ? d.abonnements.map((a) => ({ ...a, type: 'depense' })) : d.abonnements,
+      version: 5,
     };
   }
 
@@ -226,6 +235,7 @@ function validerAbonnement(a, i) {
     && montantValide(a.montant)
     && typeof a.categorieId === 'string'
     && typeof a.compteId === 'string'
+    && TYPES.includes(a.type)
     && Number.isInteger(a.jour) && a.jour >= 1 && a.jour <= 31
     && typeof a.actif === 'boolean'
     && typeof a.depuis === 'string' && FORMAT_DATE.test(a.depuis)
@@ -234,6 +244,7 @@ function validerAbonnement(a, i) {
 
   return {
     id: a.id,
+    type: a.type,
     nom: a.nom.slice(0, 40),
     montant: a.montant,
     categorieId: a.categorieId,
@@ -286,6 +297,26 @@ function prochainPrelevement(abonnement, aujourdhui = dateDuJour()) {
     courant = moisApres(courant);
   }
   return null;
+}
+
+/**
+ * Tous les mouvements programmés (abonnements et revenus réguliers actifs)
+ * entre demain et la date limite, du plus proche au plus lointain.
+ * → [{ date, abonnement }]
+ */
+function prochainesEcheances(limite, aujourdhui = dateDuJour()) {
+  const echeances = [];
+  for (const abonnement of Store.donnees.abonnements) {
+    if (!abonnement.actif) continue;
+    let courant = premierMoisATraiter(abonnement);
+    for (let i = 0; i < 36; i++) {
+      const date = datePrelevement(courant.annee, courant.mois, abonnement.jour);
+      if (date > limite) break;
+      if (date >= abonnement.depuis && date > aujourdhui) echeances.push({ date, abonnement });
+      courant = moisApres(courant);
+    }
+  }
+  return echeances.sort((a, b) => a.date.localeCompare(b.date) || b.abonnement.type.localeCompare(a.abonnement.type));
 }
 
 /* ---------- Le magasin de données ---------- */
@@ -545,7 +576,7 @@ const Store = {
         if (date >= abonnement.depuis) {
           this.donnees.transactions.push({
             id: genererId(),
-            type: 'depense',
+            type: abonnement.type,
             montant: abonnement.montant,
             categorieId: abonnement.categorieId,
             compteId: abonnement.compteId,

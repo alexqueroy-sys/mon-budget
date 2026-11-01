@@ -9,12 +9,12 @@ de les sauvegarder ou de les transférer sur un autre appareil.
 
 ## Fonctionnalités
 
-- **Accueil** : solde réel de chaque compte bancaire (courant, livret…), résumé du mois, budgets, épargne
+- **Accueil** : solde réel de chaque compte bancaire (courant, livret…), ce qui arrive et part dans les 30 prochains jours, résumé du mois, budgets, épargne
 - **Comptes** : plusieurs comptes avec leur solde, et virements entre eux (qui ne comptent ni comme dépense ni comme revenu)
 - **Transactions** : ajout, modification et suppression des dépenses et revenus, filtres et recherche
 - **Budgets** : une limite de dépense par mois et par catégorie, avec alerte à 80 % et en cas de dépassement
 - **Épargne** : objectifs avec montant cible, date limite et calcul de l'effort mensuel
-- **Abonnements** : paiements mensuels, ajoutés automatiquement aux transactions le jour du prélèvement (avec pause possible)
+- **Abonnements** : ce qui revient chaque mois, à payer (forfait, loyer…) ou à recevoir (salaire, APL…), ajouté automatiquement aux transactions le jour J (avec pause possible)
 - **Trésorerie** : entrées, sorties et solde de trésorerie mois par mois (3, 6 ou 12 mois), prévision des 3 mois suivants, filtre par compte, et tableau détaillé par catégorie
 - **Paramètres** : export et import des données
 

@@ -44,7 +44,7 @@ const VUES = {
   },
   abonnements: {
     titre: 'Abonnements', avecMois: false, rendre: rendreAbonnements,
-    intro: 'Enregistre ce que tu paies chaque mois : la dépense est ajoutée toute seule le jour du prélèvement.',
+    intro: 'Ce qui revient chaque mois, à payer (forfait, loyer…) ou à recevoir (salaire, APL…) : la transaction est ajoutée toute seule le jour J.',
   },
   statistiques: {
     titre: 'Trésorerie', avecMois: true, rendre: rendreStatistiques,
@@ -356,16 +356,10 @@ function rendreAccueil() {
           </li>`;
       }).join('')}</ul>`;
 
-  // Les 3 prochains prélèvements d'abonnement
-  const abonnements = abonnementsActifsTries();
-  const totalAbonnements = abonnements.reduce((s, a) => s + a.montant, 0);
-  const htmlAbonnements = abonnements.length === 0
-    ? '<p class="vide">Note tes paiements mensuels (forfait, Spotify…) dans <a href="#abonnements">Abonnements</a>.</p>'
-    : `<p class="resume">${formaterMontant(totalAbonnements)} par mois · prochains prélèvements :</p>
-       <ul class="liste">${abonnements.slice(0, 3).map(ligneAbonnement).join('')}</ul>`;
-
   el.vue.innerHTML = `
     ${blocComptes()}
+
+    ${blocAVenir()}
 
     <h2 class="sous-titre">Ce mois-ci</h2>
     <section class="cartes">
@@ -419,14 +413,6 @@ function rendreAccueil() {
         ${objectifs.length > 0 ? '<a href="#epargne">Tout voir</a>' : ''}
       </div>
       ${htmlEpargne}
-    </section>
-
-    <section class="bloc">
-      <div class="bloc__entete">
-        <h2>Abonnements</h2>
-        ${abonnements.length > 0 ? '<a href="#abonnements">Tout voir</a>' : ''}
-      </div>
-      ${htmlAbonnements}
     </section>`;
 }
 
