@@ -21,9 +21,9 @@ function texteMoisCle(annee, mois) {
   return `${annee}-${String(mois).padStart(2, '0')}`;
 }
 
-/** Dernier jour d'un mois, au format AAAA-MM-JJ. */
+/** Dernier jour d'un mois de l'app (fin du mois, ou veille de la paie), au format AAAA-MM-JJ. */
 function finDeMois(annee, mois) {
-  return `${texteMoisCle(annee, mois)}-${String(new Date(annee, mois, 0).getDate()).padStart(2, '0')}`;
+  return Store.periode(annee, mois).fin;
 }
 
 /** Ce qu'une transaction ajoute (+) ou retire (−) à la trésorerie suivie. */
@@ -91,8 +91,7 @@ function prevision(compteId, aujourdhui) {
 
 function calculerTresorerie() {
   const compteId = etat.compteStats;
-  const maintenant = new Date();
-  const aujourdhui = { annee: maintenant.getFullYear(), mois: maintenant.getMonth() + 1 };
+  const aujourdhui = Store.moisDeLaDate(dateDuJour()); // de paie à paie si un jour de paie est réglé
   const cleAujourdhui = texteMoisCle(aujourdhui.annee, aujourdhui.mois);
   const prev = prevision(compteId, aujourdhui);
 
@@ -432,7 +431,8 @@ function dessinerGraphiqueMois(donnees = calculerTresorerie()) {
   const conteneur = document.getElementById('graphique-mois');
   if (!conteneur) return;
   const bulle = conteneur.querySelector('.bulle');
-  conteneur.innerHTML = dessinerGraphique(donnees, conteneur.clientWidth);
+  // Largeur minimale : si la page est cachée au moment du dessin, clientWidth vaut 0.
+  conteneur.innerHTML = dessinerGraphique(donnees, Math.max(conteneur.clientWidth, 280));
   conteneur.append(bulle);
   brancherBulle(conteneur, donnees);
 }

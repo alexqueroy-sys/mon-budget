@@ -81,6 +81,8 @@ const el = {
 
 function demarrer() {
   const resultat = Store.charger();
+  // On s'ouvre sur le « mois » qui contient aujourd'hui (de paie à paie si un jour de paie est réglé).
+  Object.assign(etat, Store.moisDeLaDate(dateDuJour()));
 
   if (!Store.stockageDisponible) {
     afficherToast("Attention : ce navigateur n'enregistre pas les données (navigation privée ?).", 6000);
@@ -116,6 +118,7 @@ function afficher() {
   document.title = `${vue.titre} · Mon Budget`;
   el.selecteurMois.hidden = !vue.avecMois;
   el.moisLibelle.textContent = libelleMois(etat.annee, etat.mois);
+  el.moisLibelle.parentElement.title = texteDePeriode(etat.annee, etat.mois);
 
   el.liensNav.forEach((lien) => {
     if (lien.dataset.vue === etat.vue) lien.setAttribute('aria-current', 'page');
@@ -123,6 +126,12 @@ function afficher() {
   });
 
   vue.rendre();
+}
+
+/** "du 27 oct. au 26 nov." : les dates exactes d'un mois de l'app */
+function texteDePeriode(annee, mois) {
+  const { debut, fin } = Store.periode(annee, mois);
+  return `du ${formaterDateCourte(debut)} au ${formaterDateCourte(fin)}`;
 }
 
 /** (2026, 1, -1) -> { annee: 2025, mois: 12 } */
@@ -361,7 +370,7 @@ function rendreAccueil() {
 
     ${blocAVenir()}
 
-    <h2 class="sous-titre">Ce mois-ci</h2>
+    <h2 class="sous-titre">Ce mois-ci · ${texteDePeriode(etat.annee, etat.mois)}</h2>
     <section class="cartes">
       <div class="carte carte--solde">
         <span class="carte__label">Solde du mois</span>
@@ -553,6 +562,23 @@ function rendreParametres() {
       </div>
     </section>
 
+    <section class="bloc">
+      <h2>Jour de paie</h2>
+      <p class="texte-doux">
+        Indique le jour où tu reçois ton salaire : tout l'app (accueil, budgets, montant par jour, trésorerie)
+        compte alors de paie à paie. Par exemple, avec le 27, « Novembre » va du 27 octobre au 26 novembre.
+        Laisse vide pour compter du 1er à la fin du mois.
+      </p>
+      <form class="jour-paie" id="form-jour-paie" novalidate>
+        <label class="champ">
+          <span class="champ__label">Je suis payé le</span>
+          <input type="number" name="jourPaie" min="1" max="31" inputmode="numeric" placeholder="ex. 27"
+            value="${Store.donnees.parametres.jourPaie || ''}">
+        </label>
+        <button type="submit" class="btn btn--principal">Enregistrer</button>
+      </form>
+    </section>
+
     ${htmlInstallation()}
 
     <section class="bloc">
@@ -574,6 +600,20 @@ function rendreParametres() {
     </section>`;
 
   brancherInstallation();
+
+  document.getElementById('form-jour-paie').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const saisie = e.target.elements.namedItem('jourPaie').value.trim();
+    const jour = saisie === '' ? null : Number(saisie);
+    if (jour !== null && (!Number.isInteger(jour) || jour < 1 || jour > 31)) {
+      afficherToast('Le jour de paie doit être entre 1 et 31 (ou vide).', 4000);
+      return;
+    }
+    Store.definirJourPaie(jour);
+    Object.assign(etat, Store.moisDeLaDate(dateDuJour()));
+    afficher();
+    afficherToast(jour ? `C'est noté : tout compte maintenant de paie à paie (le ${jour}) ✔` : 'Retour aux mois du 1er au dernier jour ✔', 4000);
+  });
 
   const fichierImport = document.getElementById('fichier-import');
   document.getElementById('btn-exporter').addEventListener('click', exporterDonnees);
@@ -635,9 +675,9 @@ function remplirCategories(type, selection) {
 
 /** Date proposée : aujourd'hui si on regarde le mois en cours, sinon le 1er du mois affiché. */
 function dateParDefaut() {
-  const moisAffiche = `${etat.annee}-${String(etat.mois).padStart(2, '0')}`;
+  const { debut, fin } = Store.periode(etat.annee, etat.mois);
   const jour = dateDuJour();
-  return jour.startsWith(moisAffiche) ? jour : `${moisAffiche}-01`;
+  return jour >= debut && jour <= fin ? jour : debut;
 }
 
 /**
@@ -732,9 +772,7 @@ function enregistrerFormulaire(e) {
   el.modale.close();
 
   // On affiche le mois de la transaction, pour que l'utilisateur la voie tout de suite.
-  const [annee, mois] = date.split('-').map(Number);
-  etat.annee = annee;
-  etat.mois = mois;
+  Object.assign(etat, Store.moisDeLaDate(date));
   afficher();
 
   if (!ok) afficherToast("⚠️ Impossible d'enregistrer : le stockage du navigateur est indisponible.", 5000);

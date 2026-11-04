@@ -498,6 +498,9 @@ a { color: var(--principal); }
 }
 .ligne-budget:hover { background: var(--surface-2); }
 
+.jour-paie { display: flex; align-items: flex-end; gap: 8px; max-width: 320px; }
+.jour-paie .champ { flex: 1; }
+
 .ligne-budget__jour { margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: var(--surface-2); font-size: .85rem; }
 
 .ligne-budget__bas {

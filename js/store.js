@@ -17,6 +17,7 @@
      abonnements: [{ id, type: 'depense' | 'revenu', nom, montant (centimes par mois), categorieId, compteId, jour (1 à 31), actif,
                      depuis: 'AAAA-MM-JJ' (aucun prélèvement avant cette date),
                      dernierMoisGenere: 'AAAA-MM' | null }],
+     parametres: { jourPaie: 1 à 31 | null },   (null = mois du 1er au dernier jour)
      derniereSauvegarde: '2026-10-18T…' | null
    }
 
@@ -25,7 +26,7 @@
    ========================================================= */
 
 const CLE_STOCKAGE = 'mon-budget.donnees';
-const VERSION_DONNEES = 5;
+const VERSION_DONNEES = 6;
 const TYPES = ['depense', 'revenu'];                    // types de catégorie
 const TYPES_TRANSACTION = [...TYPES, 'virement'];       // un virement va d'un de tes comptes à un autre
 const COMPTE_PRINCIPAL = { id: 'cpt-principal', nom: 'Compte principal', icone: '🏦' };
@@ -56,6 +57,7 @@ function donneesInitiales() {
     budgets: [],
     objectifs: [],
     abonnements: [],
+    parametres: { jourPaie: null },
     derniereSauvegarde: null,
   };
 }
@@ -112,6 +114,10 @@ function validerEtMigrer(d) {
       version: 5,
     };
   }
+  if (d.version === 5) {
+    // Nouveau : les réglages (jour de paie). Par défaut, mois calendaire.
+    d = { ...d, parametres: { jourPaie: null }, version: 6 };
+  }
 
   const tableaux = ['categories', 'comptes', 'transactions', 'budgets', 'objectifs', 'abonnements'];
   if (Array.isArray(d.comptes) && d.comptes.length === 0) throw new Error(ERREUR_FORMAT);
@@ -125,8 +131,14 @@ function validerEtMigrer(d) {
     budgets: d.budgets.map(validerBudget),
     objectifs: d.objectifs.map(validerObjectif),
     abonnements: d.abonnements.map(validerAbonnement),
+    parametres: validerParametres(d.parametres),
     derniereSauvegarde: typeof d.derniereSauvegarde === 'string' ? d.derniereSauvegarde : null,
   };
+}
+
+function validerParametres(p) {
+  const jour = p && p.jourPaie;
+  return { jourPaie: Number.isInteger(jour) && jour >= 1 && jour <= 31 ? jour : null };
 }
 
 const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -383,11 +395,45 @@ const Store = {
     return this.donnees.transactions.find((t) => t.id === id);
   },
 
-  /** Transactions d'un mois donné (mois de 1 à 12), les plus récentes d'abord. */
+  /* ---------- Périodes : mois calendaire, ou de paie à paie ---------- */
+
+  /**
+   * Dates de début et de fin d'un « mois » de l'app.
+   * Sans jour de paie : du 1er au dernier jour. Avec un jour de paie (ex. 27) :
+   * « Novembre » va du 27 octobre au 26 novembre. Le salaire du 27 novembre
+   * ouvre donc la période de décembre, celle qu'il sert à payer.
+   */
+  periode(annee, mois) {
+    const jour = this.donnees.parametres.jourPaie;
+    if (!jour) {
+      return { debut: `${texteMois(annee, mois)}-01`, fin: datePrelevement(annee, mois, 31) };
+    }
+    const precedent = mois === 1 ? { annee: annee - 1, mois: 12 } : { annee, mois: mois - 1 };
+    const fin = texteVersDate(datePrelevement(annee, mois, jour));
+    fin.setDate(fin.getDate() - 1);
+    return { debut: datePrelevement(precedent.annee, precedent.mois, jour), fin: dateVersTexte(fin) };
+  },
+
+  /** Le « mois » de l'app qui contient une date (AAAA-MM-JJ). */
+  moisDeLaDate(date) {
+    const [annee, mois] = date.split('-').map(Number);
+    const jourPaie = this.donnees.parametres.jourPaie;
+    if (jourPaie && date >= datePrelevement(annee, mois, jourPaie)) {
+      return mois === 12 ? { annee: annee + 1, mois: 1 } : { annee, mois: mois + 1 };
+    }
+    return { annee, mois };
+  },
+
+  definirJourPaie(jour) {
+    this.donnees.parametres.jourPaie = jour;
+    return this.sauvegarder();
+  },
+
+  /** Transactions d'un mois de l'app (mois de 1 à 12), les plus récentes d'abord. */
   transactionsDuMois(annee, mois) {
-    const prefixe = `${annee}-${String(mois).padStart(2, '0')}-`;
+    const { debut, fin } = this.periode(annee, mois);
     return this.donnees.transactions
-      .filter((t) => t.date.startsWith(prefixe))
+      .filter((t) => t.date >= debut && t.date <= fin)
       .sort(trierTransactions);
   },
 

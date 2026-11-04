@@ -14,13 +14,15 @@ function etatBudget(depense, budget) {
 }
 
 /**
- * Jours qu'il reste dans le mois, aujourd'hui compris (0 pour un mois passé).
+ * Jours qu'il reste dans le mois (ou jusqu'à la prochaine paie), aujourd'hui compris (0 pour un mois passé).
  * Avec joursOuvres, on ne compte que du lundi au vendredi.
  */
 function joursRestantsDuMois(annee, mois, joursOuvres) {
+  // Le mois peut aller de paie à paie (voir Store.periode).
+  const periode = Store.periode(annee, mois);
   const aujourdhui = texteVersDate(dateDuJour());
-  const fin = new Date(annee, mois, 0);
-  const jour = new Date(Math.max(aujourdhui, new Date(annee, mois - 1, 1)));
+  const fin = texteVersDate(periode.fin);
+  const jour = new Date(Math.max(aujourdhui, texteVersDate(periode.debut)));
   let compte = 0;
   while (jour <= fin) {
     const semaine = jour.getDay() !== 0 && jour.getDay() !== 6;
