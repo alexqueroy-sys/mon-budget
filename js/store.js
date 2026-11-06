@@ -26,7 +26,7 @@
    ========================================================= */
 
 const CLE_STOCKAGE = 'mon-budget.donnees';
-const VERSION_DONNEES = 6;
+const VERSION_DONNEES = 7;
 const TYPES = ['depense', 'revenu'];                    // types de catégorie
 const TYPES_TRANSACTION = [...TYPES, 'virement'];       // un virement va d'un de tes comptes à un autre
 const COMPTE_PRINCIPAL = { id: 'cpt-principal', nom: 'Compte principal', icone: '🏦' };
@@ -41,6 +41,7 @@ const CATEGORIES_PAR_DEFAUT = [
   { id: 'cat-sorties',       nom: 'Sorties',       type: 'depense', couleur: '#d2457a', icone: '🎉' },
   { id: 'cat-sante',         nom: 'Santé',         type: 'depense', couleur: '#2fa3a3', icone: '💊' },
   { id: 'cat-shopping',      nom: 'Shopping',      type: 'depense', couleur: '#d2a92f', icone: '🛍️' },
+  { id: 'cat-loisirs',       nom: 'Loisirs',       type: 'depense', couleur: '#c75bd2', icone: '🎮' },
   { id: 'cat-abonnements',   nom: 'Abonnements',   type: 'depense', couleur: '#5b6fd6', icone: '📱' },
   { id: 'cat-autre-depense', nom: 'Autre dépense', type: 'depense', couleur: '#7a8b99', icone: '📦' },
 ];
@@ -117,6 +118,13 @@ function validerEtMigrer(d) {
   if (d.version === 5) {
     // Nouveau : les réglages (jour de paie). Par défaut, mois calendaire.
     d = { ...d, parametres: { jourPaie: null }, version: 6 };
+  }
+  if (d.version === 6) {
+    // Nouvelle catégorie par défaut : Loisirs (jeux vidéo, livres, films…), si elle n'existe pas déjà.
+    const loisirs = CATEGORIES_PAR_DEFAUT.find((c) => c.id === 'cat-loisirs');
+    const categories = Array.isArray(d.categories) ? d.categories : [];
+    const dejaLa = categories.some((c) => c && (c.id === loisirs.id || (typeof c.nom === 'string' && c.nom.toLowerCase() === 'loisirs')));
+    d = { ...d, categories: dejaLa ? categories : [...categories, { ...loisirs }], version: 7 };
   }
 
   const tableaux = ['categories', 'comptes', 'transactions', 'budgets', 'objectifs', 'abonnements'];
