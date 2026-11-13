@@ -35,6 +35,11 @@ function joursRestantsDuMois(annee, mois, joursOuvres) {
 /** Budgets du mois affiché, avec ce qui a été dépensé, les plus « consommés » d'abord. */
 function suiviBudgets(annee, mois) {
   const depenses = totauxDepensesParCategorie(Store.transactionsDuMois(annee, mois));
+  // Pour le mois en cours : l'argent réellement disponible d'ici la fin de la période.
+  // Un budget ne peut pas promettre plus que ce qu'il y a sur tes comptes.
+  const { debut, fin } = Store.periode(annee, mois);
+  const aujourdhui = dateDuJour();
+  const disponible = aujourdhui >= debut && aujourdhui <= fin ? Store.argentDisponibleJusquA(fin) : null;
   return Store.donnees.budgets
     .map((b) => {
       const depense = depenses.get(b.categorieId) || 0;
@@ -45,28 +50,38 @@ function suiviBudgets(annee, mois) {
         etat: etatBudget(depense, b.montant),
         joursOuvres: b.joursOuvres,
         joursRestants: joursRestantsDuMois(annee, mois, b.joursOuvres),
+        disponible,
       };
     })
     .sort((a, b) => b.depense / b.budget - a.depense / a.budget);
 }
 
 /** Ligne avec barre de progression, utilisée sur l'écran Budgets et sur l'Accueil. */
-function ligneBudget({ categorie, budget, depense, etat, joursOuvres, joursRestants }) {
+function ligneBudget({ categorie, budget, depense, etat, joursOuvres, joursRestants, disponible = null }) {
   const pourcentage = Math.round((depense / budget) * 100);
   const reste = budget - depense;
   const texteReste = reste >= 0
     ? `Reste ${formaterMontant(reste)}`
     : `Dépassé de ${formaterMontant(-reste)}`;
 
-  // Ce qu'on peut encore dépenser chaque jour d'ici la fin du mois (arrondi vers le bas, par prudence).
+  // Ce qu'on peut encore dépenser chaque jour d'ici la fin du mois (arrondi vers le bas, par prudence) :
+  // le plus petit entre ce qui reste dans le budget et l'argent réellement disponible sur les comptes.
   let parJour = '';
-  if (reste > 0 && joursRestants > 0) {
-    const montant = Math.floor(reste / joursRestants);
-    const s = joursRestants > 1 ? 's' : '';
-    const unite = joursOuvres ? 'jour de semaine' : 'jour';
-    const restants = joursOuvres ? `jour${s} de semaine restant${s}` : `jour${s} restant${s}`;
+  const limiteParCompte = disponible !== null && disponible < reste;
+  const aDepenser = limiteParCompte ? disponible : reste;
+  const s = joursRestants > 1 ? 's' : '';
+  const unite = joursOuvres ? 'jour de semaine' : 'jour';
+  const restants = joursOuvres ? `jour${s} de semaine restant${s}` : `jour${s} restant${s}`;
+  if (aDepenser > 0 && joursRestants > 0) {
+    const montant = Math.floor(aDepenser / joursRestants);
     parJour = `<div class="ligne-budget__jour">👉 <strong>${formaterMontant(montant)}</strong> par ${unite}`
-      + ` · ${joursRestants} ${restants}</div>`;
+      + ` · ${joursRestants} ${restants}`
+      + (limiteParCompte
+        ? `<small>⚠️ Limité par ton compte : il ne reste que ${formaterMontant(disponible)} de disponible d'ici ta paie, prélèvements déduits.</small>`
+        : '')
+      + '</div>';
+  } else if (reste > 0 && joursRestants > 0 && limiteParCompte) {
+    parJour = `<div class="ligne-budget__jour ligne-budget__jour--alerte">⚠️ Plus d'argent disponible sur ton compte d'ici ta paie, prélèvements déduits.</div>`;
   }
 
   return `

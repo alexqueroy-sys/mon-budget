@@ -93,6 +93,7 @@ function ouvrirModaleCompte(compte = null) {
   champs.namedItem('icone').value = compte ? compte.icone : ICONES_COMPTE[0];
   champs.namedItem('solde').value = compte ? centimesVersSaisie(Store.soldeCompte(compte.id)) : '';
   champs.namedItem('archive').checked = compte ? compte.archive : false;
+  champs.namedItem('epargne').checked = compte ? Boolean(compte.epargne) : false;
 
   elCompte.titre.textContent = compte ? 'Modifier le compte' : 'Nouveau compte';
   elCompte.choixArchive.hidden = !compte;
@@ -137,7 +138,10 @@ function brancherComptes() {
       return;
     }
 
-    const valeurs = { nom, icone: champs.namedItem('icone').value || ICONES_COMPTE[0], soldeActuel, archive };
+    const valeurs = {
+      nom, icone: champs.namedItem('icone').value || ICONES_COMPTE[0], soldeActuel, archive,
+      epargne: champs.namedItem('epargne').checked,
+    };
     const ok = enEdition ? Store.modifierCompte(enEdition.id, valeurs) : Store.ajouterCompte(valeurs);
 
     elCompte.modale.close();

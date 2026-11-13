@@ -7,7 +7,8 @@
    {
      version: 4,
      categories: [{ id, nom, type: 'depense' | 'revenu', couleur, icone }],
-     comptes: [{ id, nom, icone, soldeInitial (centimes, peut être négatif), archive, creeLe }],
+     comptes: [{ id, nom, icone, soldeInitial (centimes, peut être négatif), archive,
+                 epargne (PEA, livret… : pas de l'argent à dépenser au quotidien), creeLe }],
      transactions: [{ id, type: 'depense' | 'revenu' | 'virement', montant (centimes), compteId,
                       compteDestId (virement seulement : compte qui reçoit), categorieId ('' pour un virement),
                       date: 'AAAA-MM-JJ', note, creeLe, abonnementId? }],
@@ -26,7 +27,7 @@
    ========================================================= */
 
 const CLE_STOCKAGE = 'mon-budget.donnees';
-const VERSION_DONNEES = 7;
+const VERSION_DONNEES = 8;
 const TYPES = ['depense', 'revenu'];                    // types de catégorie
 const TYPES_TRANSACTION = [...TYPES, 'virement'];       // un virement va d'un de tes comptes à un autre
 const COMPTE_PRINCIPAL = { id: 'cpt-principal', nom: 'Compte principal', icone: '🏦' };
@@ -64,7 +65,7 @@ function donneesInitiales() {
 }
 
 function nouveauComptePrincipal() {
-  return { ...COMPTE_PRINCIPAL, soldeInitial: 0, archive: false, creeLe: new Date().toISOString() };
+  return { ...COMPTE_PRINCIPAL, soldeInitial: 0, archive: false, epargne: false, creeLe: new Date().toISOString() };
 }
 
 function genererId() {
@@ -125,6 +126,14 @@ function validerEtMigrer(d) {
     const categories = Array.isArray(d.categories) ? d.categories : [];
     const dejaLa = categories.some((c) => c && (c.id === loisirs.id || (typeof c.nom === 'string' && c.nom.toLowerCase() === 'loisirs')));
     d = { ...d, categories: dejaLa ? categories : [...categories, { ...loisirs }], version: 7 };
+  }
+  if (d.version === 7) {
+    // Nouveau : comptes d'épargne. On les devine d'après leur nom (modifiable ensuite).
+    const motsEpargne = /\b(pea|livret|ldds|lep|cel|pel|[ée]pargne|assurance[- ]vie|per)\b/i;
+    const comptes = Array.isArray(d.comptes)
+      ? d.comptes.map((c) => ({ ...c, epargne: Boolean(c && typeof c.nom === 'string' && motsEpargne.test(c.nom)) }))
+      : d.comptes;
+    d = { ...d, comptes, version: 8 };
   }
 
   const tableaux = ['categories', 'comptes', 'transactions', 'budgets', 'objectifs', 'abonnements'];
@@ -218,6 +227,7 @@ function validerCompte(c, i) {
     icone: typeof c.icone === 'string' ? Array.from(c.icone).slice(0, 3).join('') : '🏦',
     soldeInitial: c.soldeInitial,
     archive: c.archive === true,
+    epargne: c.epargne === true,
     creeLe: typeof c.creeLe === 'string' ? c.creeLe : '',
   };
 }
@@ -497,17 +507,33 @@ const Store = {
    * L'utilisateur indique toujours le solde ACTUEL du compte (ce qu'il voit sur l'appli
    * de sa banque). On en déduit le solde de départ en retirant les mouvements déjà saisis.
    */
-  ajouterCompte({ nom, icone, soldeActuel }) {
+  ajouterCompte({ nom, icone, soldeActuel, epargne = false }) {
     const id = genererId();
-    this.donnees.comptes.push({ id, nom, icone, soldeInitial: soldeActuel, archive: false, creeLe: new Date().toISOString() });
+    this.donnees.comptes.push({ id, nom, icone, soldeInitial: soldeActuel, archive: false, epargne, creeLe: new Date().toISOString() });
     return this.sauvegarder();
   },
 
-  modifierCompte(id, { nom, icone, soldeActuel, archive }) {
+  modifierCompte(id, { nom, icone, soldeActuel, archive, epargne = false }) {
     const compte = this.compte(id);
     if (!compte) return false;
-    Object.assign(compte, { nom, icone, archive, soldeInitial: soldeActuel - this.mouvementsCompte(id) });
+    Object.assign(compte, { nom, icone, archive, epargne, soldeInitial: soldeActuel - this.mouvementsCompte(id) });
     return this.sauvegarder();
+  },
+
+  /**
+   * Argent vraiment disponible pour les dépenses du quotidien jusqu'à une date :
+   * solde des comptes courants (pas les comptes d'épargne, pas les archivés),
+   * moins les prélèvements programmés d'ici là, plus les versements programmés.
+   */
+  argentDisponibleJusquA(date) {
+    const courants = this.comptesActifs().filter((c) => !c.epargne);
+    const ids = new Set(courants.map((c) => c.id));
+    let disponible = courants.reduce((s, c) => s + this.soldeCompte(c.id), 0);
+    for (const { abonnement } of prochainesEcheances(date)) {
+      if (!ids.has(abonnement.compteId)) continue;
+      disponible += abonnement.type === 'revenu' ? abonnement.montant : -abonnement.montant;
+    }
+    return disponible;
   },
 
   /** Un compte encore utilisé par une transaction ou un abonnement ne peut pas être supprimé. */
