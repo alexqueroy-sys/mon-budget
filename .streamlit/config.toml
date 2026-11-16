@@ -1,0 +1,12 @@
+[server]
+headless = true
+address = "0.0.0.0"          # à l'intérieur du conteneur ; l'exposition réelle est réglée dans docker-compose.yml
+port = 8501
+enableXsrfProtection = true
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

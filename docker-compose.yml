@@ -1,0 +1,26 @@
+# Projet « budget » : un dossier, un compose, un réseau. Les données bancaires restent dans ./data.
+services:
+  budget:
+    build: .
+    image: budget-app:local
+    container_name: budget
+    restart: unless-stopped
+    user: "10001:10001"
+    environment:
+      BUDGET_DATA: /data          # users.json et users/<nom>.db (une base par utilisateur)
+    volumes:
+      - ./data:/data              # seul volume : comptes et bases SQLite
+    ports:
+      # Par défaut, écoute seulement en local sur le serveur. Accès à distance : Tailscale (voir README).
+      - "${BIND_ADDR:-127.0.0.1}:${HOST_PORT:-8501}:8501"
+    networks: [budget_net]
+    read_only: true               # système de fichiers du conteneur en lecture seule
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  budget_net:                     # réseau dédié à ce projet, isolé des autres
+    driver: bridge

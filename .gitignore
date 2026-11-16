@@ -1,0 +1,11 @@
+# Données personnelles : ne jamais versionner
+data/
+*.db
+*.db-wal
+*.db-shm
+*.csv
+*.ofx
+.env
+__pycache__/
+.pytest_cache/
+.venv/
