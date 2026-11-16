@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from app import loan
+from app.importers import IMPORTERS
 from app.money import format_eur, parse_montant
 from app.ui import page
 
@@ -30,13 +31,42 @@ with st.expander("Ajouter ou remplacer un prêt", expanded=not conn.execute("SEL
             except Exception as e:
                 st.error(f"Prêt invalide : {e}")
 
+with st.expander("Lire le fichier de la banque (capital restant dû réel)"):
+    st.caption("Export BNP du prêt : la première ligne donne le capital restant dû à la date de l'export. "
+               "Ce chiffre remplace le calcul théorique tant que tu n'importes pas un fichier plus récent.")
+    fichier = st.file_uploader("Fichier CSV du prêt", type=["csv", "txt"], key="csv_pret")
+    if fichier:
+        try:
+            resume = IMPORTERS["bnp"].resume_compte(fichier.getvalue())
+            if resume is None:
+                st.error("Ce fichier n'a pas le format d'un export BNP (première ligne de résumé du compte).")
+            elif resume["solde"] >= 0:
+                st.error("Le solde de ce fichier n'est pas négatif : ce n'est pas le fichier d'un prêt.")
+            elif not conn.execute("SELECT 1 FROM prets").fetchone():
+                st.warning("Enregistre d'abord le prêt ci-dessus (capital, taux, durée), puis relis ce fichier.")
+            else:
+                reel = -resume["solde"]
+                st.info(f"{resume['libelle']} {resume['numero_masque']} : capital restant dû "
+                        f"{format_eur(reel)} au {date.fromisoformat(resume['date']).strftime('%d/%m/%Y')}.")
+                if st.button("Utiliser ce capital restant dû"):
+                    conn.execute("UPDATE prets SET capital_restant_reel = ?, date_reel = ?", (reel, resume["date"]))
+                    conn.commit()
+                    st.rerun()
+        except ValueError as e:
+            st.error(f"Lecture impossible : {e}")
+
 for p in conn.execute("SELECT * FROM prets").fetchall():
     lignes = loan.tableau_amortissement(p["capital"], p["taux_annuel"], date.fromisoformat(p["date_debut"]),
                                         p["differe_mois"], p["duree_mois"])
     r = loan.resume(lignes, p["capital"], date.today())
     st.subheader(p["nom"])
     c1, c2, c3 = st.columns(3)
-    c1.metric("Capital restant dû", format_eur(r["capital_restant"]))
+    if p["capital_restant_reel"] is not None:
+        c1.metric("Capital restant dû", format_eur(p["capital_restant_reel"]))
+        c1.caption(f"Chiffre de la banque au {date.fromisoformat(p['date_reel']).strftime('%d/%m/%Y')}. "
+                   f"Calcul théorique : {format_eur(r['capital_restant'])}.")
+    else:
+        c1.metric("Capital restant dû", format_eur(r["capital_restant"]))
     c2.metric("Mensualités restantes", r["mensualites_restantes"])
     c3.metric("Intérêts totaux", format_eur(r["interets_totaux"]))
     if r["prochaine_echeance"]:

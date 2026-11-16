@@ -35,10 +35,11 @@ def libelle_compte(c: dict) -> str:
 
 
 st.subheader("Importer un export CSV")
-if not courants:
-    st.info("Crée d'abord un compte courant.")
+importables = courants + epargnes
+if not importables:
+    st.info("Crée d'abord un compte.")
 else:
-    cible = st.selectbox("Compte", courants, format_func=libelle_compte, key="cible_import")
+    cible = st.selectbox("Compte", importables, format_func=libelle_compte, key="cible_import")
     importer = IMPORTERS[cible["banque"]]
     st.caption(f"Format utilisé : {importer.nom}. Télécharge depuis l'espace client de cette banque l'export CSV "
                f"des opérations de ce compte. Un export par compte, jamais plusieurs comptes dans un même fichier.")

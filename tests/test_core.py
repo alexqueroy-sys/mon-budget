@@ -328,11 +328,11 @@ def test_filtre_par_compte_et_groupes(conn):
     conn.execute("INSERT INTO transactions (compte_id, date, libelle, montant, hash) VALUES (2, '2026-10-06', 'X', -400, 'x')")
     conn.commit()
     assert stats.flux_mensuels(conn, [1]).iloc[0]["sorties"] == 1000
-    assert stats.flux_mensuels(conn, [2]).iloc[0]["sorties"] == 400
+    assert stats.flux_mensuels(conn, [2]).empty   # un compte d'épargne n'est jamais de la consommation
     assert stats.flux_mensuels(conn, []).empty
     assert stats.depenses_par_categorie(conn, "2026-10", [1])["depense"].sum() == 1000
     g = stats.soldes_par_banque(stats.soldes_comptes(conn))
-    assert set(g) == {"bnp", "boursorama"} and g["bnp"]["courant"] == -1000 and g["boursorama"]["epargne"] == 50000
+    assert set(g) == {"bnp", "boursorama"} and g["bnp"]["courant"] == -1000 and g["boursorama"]["epargne"] == 49600
 
 
 CSV_CE = """Compte : DEMO;;;;;;;;;;;;
@@ -362,3 +362,67 @@ def test_caisse_epargne_pipeline_complet(conn):
     cats = {r["libelle"]: r["categorie"] for r in conn.execute(
         "SELECT t.libelle, c.nom AS categorie FROM transactions t LEFT JOIN categories c ON c.id = t.categorie_id")}
     assert cats["CB CARREFOUR MARKET"] == "Courses" and cats["PRLV SPOTIFY"] == "Abonnements"
+
+
+# Format réel BNP : pas d'en-tête, 1re ligne = résumé du compte, ensuite date;catégorie;type;libellé;montant
+CSV_BNP_REEL = """"Compte de ch&egrave;ques";"Compte de ch&amp;egrave;ques";****1234;13/11/26;;33,97
+05/11/25;PRELEVEMENT;PRLV SEPA;PRLV SEPA STREAMING SA ECH/051125 ID EMETTEUR/FR00ZZZ000000 MDT/ABC REF/XYZ LIB/ABC;-7,85
+05/12/25;PRELEVEMENT;PRLV SEPA;PRLV SEPA STREAMING SA ECH/051225 ID EMETTEUR/FR00ZZZ000000 MDT/ABC REF/XYZ LIB/ABC;-7,85
+27/07/26;PAIEMENT CB;FACTURE CARTE;FACTURE CARTE DU 260726 CINEMA TEST VILLE         CARTE   4974XXXXXXXX0000;-8,50
+16/02/26;VIREMENT;VIR CPTE A CPTE RECU;VIR CPTE A CPTE RECU /DE M TEST /MOTIF VIREMENT VERS COMPTE DE CHEQUES /REF;1 200,00
+"""
+
+
+def test_bnp_format_reel_sans_entete():
+    imp = IMPORTERS["bnp"]
+    r = imp.resume_compte(CSV_BNP_REEL.encode())
+    assert r["libelle"] == "Compte de chèques" and r["numero_masque"] == "****1234"
+    assert r["solde"] == 3397 and r["date"] == "2026-11-13"
+    assert imp.solde_indique(CSV_BNP_REEL.encode()) == 3397
+    lignes = imp.parse(CSV_BNP_REEL.encode())
+    assert [l.montant for l in lignes] == [-785, -785, -850, 120000]
+    # le bruit (échéance, mandat, carte, date collée) disparaît : même libellé d'un mois à l'autre
+    assert lignes[0].libelle == lignes[1].libelle == "PRLV SEPA STREAMING SA"
+    assert lignes[2].libelle == "FACTURE CARTE CINEMA TEST VILLE"
+    assert "REF" not in lignes[3].libelle.replace("REFDO", "").split("/MOTIF")[0]
+
+
+def test_bnp_compte_sans_operation():
+    brut = '"Livret Jeune";"Livret Jeune";****9999;13/11/26;;0,00\n'.encode()
+    assert IMPORTERS["bnp"].parse(brut) == []
+    assert IMPORTERS["bnp"].solde_indique(brut) == 0
+
+
+def test_import_epargne_hors_depenses_et_virements_internes(conn):
+    conn.execute("UPDATE comptes SET banque = 'bnp', nom = 'Chèques' WHERE id = 1")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Livret A', 'epargne', 'bnp')")
+    conn.commit()
+    livret = ('"Livret A";"Livret A";****5915;13/11/26;;1 500,00\n'
+              '16/10/26;VIREMENT INTERNE;VIR CPTE A CPTE EMIS;VIR CPTE A CPTE EMIS /MOTIF VIREMENT VERS COMPTE DE CHEQUES;-200,00\n'
+              '16/10/26;VIREMENT;VIREMENT SEPA EMIS;VIREMENT SEPA EMIS /MOTIF ECOLE /BEN TEST;-940,00\n')
+    cheques = ('"Compte de ch&egrave;ques";"x";****6369;13/11/26;;33,97\n'
+               '16/10/26;VIREMENT;VIR CPTE A CPTE RECU;VIR CPTE A CPTE RECU /DE M TEST /MOTIF VIREMENT VERS COMPTE DE CHEQUES /REF;200,00\n')
+    imp = IMPORTERS["bnp"]
+    assert importer_lignes(conn, 2, imp.parse(livret.encode())) == (2, 0)
+    importer_lignes(conn, 1, imp.parse(cheques.encode()))
+    paires = virements_internes_probables(conn)
+    assert len(paires) == 1 and (paires[0]["de"], paires[0]["vers"]) == ("Livret A", "Chèques")
+    # aucune dépense fantôme venant du livret
+    assert stats.depenses_par_categorie(conn, "2026-10")["depense"].sum() == 0
+    # le calage met le livret au solde de la banque, même avec un ancien relevé
+    conn.execute("INSERT INTO releves_epargne (compte_id, date, solde) VALUES (2, '2020-01-01', 1)")
+    stats.caler_solde(conn, 2, imp.solde_indique(livret.encode()))
+    assert {c["nom"]: c["solde"] for c in stats.soldes_comptes(conn)}["Livret A"] == 150000
+
+
+def test_pret_capital_reel_de_la_banque(conn):
+    from datetime import date
+    conn.execute("INSERT INTO prets (nom, capital, taux_annuel, date_debut, differe_mois, duree_mois) "
+                 "VALUES ('Prêt', 3000000, 0.02, '2025-01-01', 12, 60)")
+    conn.commit()
+    theorique = stats.dette_totale(conn, date(2026, 11, 13))
+    r = IMPORTERS["bnp"].resume_compte('"Pr&ecirc;t";"Pr&amp;ecirc;t";****7264;13/11/26;;-31 219,20\n'.encode())
+    assert r["solde"] == -3121920 and r["libelle"] == "Prêt"
+    conn.execute("UPDATE prets SET capital_restant_reel = ?, date_reel = ?", (-r["solde"], r["date"]))
+    conn.commit()
+    assert stats.dette_totale(conn, date(2026, 11, 13)) == 3121920 != theorique

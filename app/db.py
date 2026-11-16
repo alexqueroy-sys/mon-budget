@@ -3,7 +3,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE comptes (
@@ -131,6 +131,13 @@ def migrer(conn: sqlite3.Connection) -> None:
         # Chaque compte appartient à une banque ('bnp', 'boursorama' ou 'autre') : détermine le format d'import.
         conn.execute("ALTER TABLE comptes ADD COLUMN banque TEXT NOT NULL DEFAULT 'autre'")
         conn.execute("PRAGMA user_version = 2")
+        conn.commit()
+        version = 2
+    if version < 3:
+        # Capital restant dû réel (lu dans le fichier de la banque) : prime sur le calcul théorique du tableau.
+        conn.execute("ALTER TABLE prets ADD COLUMN capital_restant_reel INTEGER")
+        conn.execute("ALTER TABLE prets ADD COLUMN date_reel TEXT")
+        conn.execute("PRAGMA user_version = 3")
         conn.commit()
 
 

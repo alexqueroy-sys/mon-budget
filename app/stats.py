@@ -12,19 +12,19 @@ SEUIL_ATTENTION = 0.8  # à partir de 80 % d'un budget : alerte
 
 
 def soldes_comptes(conn: sqlite3.Connection) -> list[dict]:
-    """Courant : solde initial + transactions. Épargne : dernier relevé saisi à la main (sinon solde initial)."""
+    """Courant : solde initial + transactions. Épargne : dernier relevé saisi à la main, sauf si des opérations
+    plus récentes ont été importées (alors solde initial + opérations, comme un compte courant)."""
     resultat = []
     for c in conn.execute("SELECT * FROM comptes WHERE archive = 0 ORDER BY type, nom"):
+        somme, derniere = conn.execute(
+            "SELECT COALESCE(SUM(montant), 0), MAX(date) FROM transactions WHERE compte_id = ?", (c["id"],)).fetchone()
+        calcule = c["solde_initial"] + somme
+        solde, info = calcule, None
         if c["type"] == "epargne":
             r = conn.execute("SELECT solde, date FROM releves_epargne WHERE compte_id = ? ORDER BY date DESC LIMIT 1",
                              (c["id"],)).fetchone()
-            solde = r["solde"] if r else c["solde_initial"]
-            info = r["date"] if r else None
-        else:
-            somme = conn.execute("SELECT COALESCE(SUM(montant), 0) FROM transactions WHERE compte_id = ?",
-                                 (c["id"],)).fetchone()[0]
-            solde = c["solde_initial"] + somme
-            info = None
+            if r and (derniere is None or r["date"] >= derniere):
+                solde, info = r["solde"], r["date"]
         resultat.append({"id": c["id"], "nom": c["nom"], "type": c["type"], "banque": c["banque"],
                          "solde": solde, "releve_du": info})
     return resultat
@@ -35,6 +35,10 @@ def caler_solde(conn: sqlite3.Connection, compte_id: int, solde_reel: int) -> No
     somme = conn.execute("SELECT COALESCE(SUM(montant), 0) FROM transactions WHERE compte_id = ?",
                          (compte_id,)).fetchone()[0]
     conn.execute("UPDATE comptes SET solde_initial = ? WHERE id = ?", (solde_reel - somme, compte_id))
+    if conn.execute("SELECT type FROM comptes WHERE id = ?", (compte_id,)).fetchone()["type"] == "epargne":
+        # un relevé daté d'aujourd'hui, sinon un ancien relevé masquerait ce calage
+        conn.execute("INSERT OR REPLACE INTO releves_epargne (compte_id, date, solde) VALUES (?, ?, ?)",
+                     (compte_id, date.today().isoformat(), solde_reel))
     conn.commit()
 
 
@@ -42,6 +46,9 @@ def dette_totale(conn: sqlite3.Connection, jour: date | None = None) -> int:
     jour = jour or date.today()
     total = 0
     for p in conn.execute("SELECT * FROM prets"):
+        if p["capital_restant_reel"] is not None:   # chiffre de la banque : prime sur le calcul théorique
+            total += p["capital_restant_reel"]
+            continue
         lignes = loan.tableau_amortissement(p["capital"], p["taux_annuel"], date.fromisoformat(p["date_debut"]),
                                             p["differe_mois"], p["duree_mois"])
         total += loan.capital_restant_au(lignes, p["capital"], jour)
@@ -68,12 +75,14 @@ def _filtre_comptes(compte_ids: list[int] | None) -> tuple[str, list[int]]:
 
 
 def flux_mensuels(conn: sqlite3.Connection, compte_ids: list[int] | None = None) -> pd.DataFrame:
-    """Entrées et sorties par mois (hors virements internes). Colonnes : mois, entrees, sorties (positives).
+    """Entrées et sorties par mois (hors virements internes et hors comptes d'épargne : leurs mouvements ne sont pas de la consommation). Colonnes : mois, entrees, sorties (positives).
     compte_ids : limiter à certains comptes (None = tous)."""
     clause, params = _filtre_comptes(compte_ids)
     df = pd.read_sql_query(
         "SELECT substr(t.date, 1, 7) AS mois, t.montant FROM transactions t "
-        "LEFT JOIN categories c ON c.id = t.categorie_id WHERE COALESCE(c.type, '') != 'interne'" + clause,
+        "JOIN comptes co ON co.id = t.compte_id "
+        "LEFT JOIN categories c ON c.id = t.categorie_id "
+        "WHERE COALESCE(c.type, '') != 'interne' AND co.type != 'epargne'" + clause,
         conn, params=params)
     if df.empty:
         return pd.DataFrame(columns=["mois", "entrees", "sorties"])
@@ -86,8 +95,10 @@ def depenses_par_categorie(conn: sqlite3.Connection, mois: str, compte_ids: list
     clause, params = _filtre_comptes(compte_ids)
     return pd.read_sql_query(
         "SELECT COALESCE(c.nom, 'Sans catégorie') AS categorie, -SUM(t.montant) AS depense "
-        "FROM transactions t LEFT JOIN categories c ON c.id = t.categorie_id "
-        "WHERE t.montant < 0 AND substr(t.date, 1, 7) = ? AND COALESCE(c.type, 'depense') = 'depense'" + clause +
+        "FROM transactions t JOIN comptes co ON co.id = t.compte_id "
+        "LEFT JOIN categories c ON c.id = t.categorie_id "
+        "WHERE t.montant < 0 AND substr(t.date, 1, 7) = ? AND COALESCE(c.type, 'depense') = 'depense' "
+        "AND co.type != 'epargne'" + clause +
         " GROUP BY categorie ORDER BY depense DESC", conn, params=[mois, *params])
 
 
