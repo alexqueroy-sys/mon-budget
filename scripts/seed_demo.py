@@ -36,8 +36,8 @@ if __name__ == "__main__":
     conn = db.connect()
     if conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]:
         sys.exit("La base contient déjà des transactions : démo annulée pour ne rien écraser.")
-    conn.execute("INSERT INTO comptes (nom, type) VALUES ('Compte courant démo', 'courant')")
-    conn.execute("INSERT INTO comptes (nom, type) VALUES ('Livret démo', 'epargne')")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Compte courant démo', 'courant', 'bnp')")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Livret démo', 'epargne', 'boursorama')")
     conn.commit()
     importer_lignes(conn, 1, CsvBanque().parse(csv_demo().encode()))
     stats.caler_solde(conn, 1, 85_000)

@@ -1,9 +1,9 @@
-"""Import d'un export CSV bancaire (BNP et banques au format proche).
+"""Import d'un export CSV bancaire.
 
-Le format exact des exports change selon la banque et la date : ce parseur est donc tolérant.
-Il détecte le séparateur, repère la ligne d'en-têtes par ses noms de colonnes, accepte soit une
-colonne « montant » signée, soit deux colonnes débit / crédit. Si ton export ne passe pas,
-ajuste SYNONYMES plus bas : c'est le seul endroit à toucher."""
+Les formats changent selon la banque et la date : le parseur est tolérant. Il détecte le séparateur,
+repère la ligne d'en-têtes par ses noms de colonnes, accepte soit une colonne « montant » signée,
+soit deux colonnes débit / crédit. Chaque banque ajoute ses propres noms de colonnes
+(voir bnp.py et boursorama.py) ; si un export est refusé, c'est là qu'il faut ajuster."""
 import csv
 import io
 
@@ -33,41 +33,44 @@ def _separateur(texte: str) -> str:
     return max(";,\t", key=echantillon.count)
 
 
-def _trouver_colonne(entetes: list[str], cle: str) -> int | None:
+def _trouver_colonne(entetes: list[str], synonymes: list[str]) -> int | None:
     norm = [normaliser(e) for e in entetes]
-    for synonyme in SYNONYMES[cle]:
+    for synonyme in synonymes:
         if synonyme in norm:
             return norm.index(synonyme)
     return None
 
 
 class CsvBanque:
-    nom = "CSV banque (BNP et similaires)"
+    """Format générique. Les banques en héritent et complètent `synonymes_extra` (testés en premier)."""
+    nom = "CSV générique"
+    synonymes_extra: dict[str, list[str]] = {}
 
-    def parse(self, contenu: bytes) -> list[LigneBrute]:
+    def _syn(self, cle: str) -> list[str]:
+        return self.synonymes_extra.get(cle, []) + SYNONYMES[cle]
+
+    def _col(self, entetes: list[str], cle: str) -> int | None:
+        return _trouver_colonne(entetes, self._syn(cle))
+
+    def _lire(self, contenu: bytes):
         texte = _decoder(contenu)
         lignes = list(csv.reader(io.StringIO(texte), delimiter=_separateur(texte)))
         lignes = [[c.strip() for c in l] for l in lignes if any(c.strip() for c in l)]
         if not lignes:
             raise ValueError("fichier vide")
+        for i, l in enumerate(lignes[:15]):   # ligne d'en-têtes : date + libellé + (montant ou débit)
+            if (self._col(l, "date") is not None and self._col(l, "libelle") is not None
+                    and (self._col(l, "montant") is not None or self._col(l, "debit") is not None)):
+                return l, lignes[i + 1:]
+        return None, lignes
 
-        # 1. Ligne d'en-têtes : la première qui contient une colonne date ET (montant OU débit/crédit)
-        idx_entete = None
-        for i, l in enumerate(lignes[:15]):
-            if (_trouver_colonne(l, "date") is not None and _trouver_colonne(l, "libelle") is not None
-                    and (_trouver_colonne(l, "montant") is not None or _trouver_colonne(l, "debit") is not None)):
-                idx_entete = i
-                break
-
-        if idx_entete is None:
-            # Pas d'en-têtes : on suppose date ; libellé ; montant
+    def parse(self, contenu: bytes) -> list[LigneBrute]:
+        entete, donnees = self._lire(contenu)
+        if entete is None:   # pas d'en-têtes : on suppose date ; libellé ; montant
             c_date, c_lib, c_mont, c_deb, c_cre = 0, 1, 2, None, None
-            donnees = lignes
         else:
-            e = lignes[idx_entete]
-            c_date, c_lib = _trouver_colonne(e, "date"), _trouver_colonne(e, "libelle")
-            c_mont, c_deb, c_cre = (_trouver_colonne(e, k) for k in ("montant", "debit", "credit"))
-            donnees = lignes[idx_entete + 1:]
+            c_date, c_lib = self._col(entete, "date"), self._col(entete, "libelle")
+            c_mont, c_deb, c_cre = (self._col(entete, k) for k in ("montant", "debit", "credit"))
 
         resultat = []
         for n, l in enumerate(donnees, start=1):
@@ -90,3 +93,7 @@ class CsvBanque:
         if not resultat:
             raise ValueError("aucune transaction reconnue : vérifie le séparateur et les noms de colonnes")
         return resultat
+
+    def solde_indique(self, contenu: bytes) -> int | None:
+        """Solde mentionné dans le fichier, si le format en contient un. Par défaut : aucun."""
+        return None

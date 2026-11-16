@@ -3,12 +3,21 @@ import plotly.express as px
 import streamlit as st
 
 from app import stats
+from app.importers import BANQUES
 from app.money import format_eur
 from app.ui import page
 
 conn = page("Dépenses")
 
-flux = stats.flux_mensuels(conn)
+comptes = stats.soldes_comptes(conn)
+choix = {"Tous les comptes": None}
+for banque in dict.fromkeys(c["banque"] for c in comptes):
+    choix[f"Toute la banque {BANQUES.get(banque, banque)}"] = [c["id"] for c in comptes if c["banque"] == banque]
+for c in comptes:
+    choix[f"{BANQUES.get(c['banque'], c['banque'])} · {c['nom']}"] = [c["id"]]
+filtre = choix[st.selectbox("Afficher", list(choix))]
+
+flux = stats.flux_mensuels(conn, filtre)
 if flux.empty:
     st.info("Aucune transaction pour l'instant.")
     st.stop()
@@ -20,7 +29,7 @@ st.plotly_chart(px.bar(graph, x="mois", y="euros", color="sens", barmode="group"
                        labels={"euros": "€", "mois": "Mois"}), use_container_width=True)
 
 mois = st.selectbox("Mois", stats.mois_disponibles(conn))
-par_cat = stats.depenses_par_categorie(conn, mois)
+par_cat = stats.depenses_par_categorie(conn, mois, filtre)
 st.subheader(f"Dépenses par catégorie ({mois})")
 if par_cat.empty:
     st.write("Aucune dépense ce mois-ci.")
@@ -31,11 +40,12 @@ else:
 
 st.subheader("Transactions du mois (modifie la catégorie directement)")
 cats = [r["nom"] for r in conn.execute("SELECT nom FROM categories ORDER BY nom")]
+clause, params_f = stats._filtre_comptes(filtre)
 df = pd.read_sql_query(
-    "SELECT t.id, t.date, t.libelle, t.montant / 100.0 AS euros, c.nom AS categorie "
-    "FROM transactions t LEFT JOIN categories c ON c.id = t.categorie_id "
-    "WHERE substr(t.date, 1, 7) = ? ORDER BY t.date DESC, t.id DESC", conn, params=(mois,))
-edite = st.data_editor(df, hide_index=True, use_container_width=True, disabled=["id", "date", "libelle", "euros"],
+    "SELECT t.id, t.date, co.nom AS compte, t.libelle, t.montant / 100.0 AS euros, c.nom AS categorie "
+    "FROM transactions t JOIN comptes co ON co.id = t.compte_id LEFT JOIN categories c ON c.id = t.categorie_id "
+    "WHERE substr(t.date, 1, 7) = ?" + clause + " ORDER BY t.date DESC, t.id DESC", conn, params=[mois, *params_f])
+edite = st.data_editor(df, hide_index=True, use_container_width=True, disabled=["id", "date", "compte", "libelle", "euros"],
                        column_config={"categorie": st.column_config.SelectboxColumn("categorie", options=cats)})
 if st.button("Enregistrer les catégories"):
     for ancien, nouveau in zip(df.itertuples(), edite.itertuples()):

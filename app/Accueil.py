@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import streamlit as st
 
 from app import stats, subscriptions
+from app.importers import BANQUES
 from app.money import format_eur
 from app.ui import ETATS, metric_eur, page
 
@@ -15,13 +16,15 @@ metric_eur(c2, "Épargne", p["epargne"], "Livret A, etc. Séparée de l'argent d
 metric_eur(c3, "Dette restante", p["dette"], "Capital restant du prêt étudiant, jamais déduit des deux autres.")
 st.caption(f"Valeur nette indicative (disponible + épargne − dette) : {format_eur(p['valeur_nette'])}")
 
-st.subheader("Comptes")
+st.subheader("Comptes par banque")
 comptes = stats.soldes_comptes(conn)
 if not comptes:
     st.info("Aucun compte. Va dans « Import et comptes » pour en créer un et importer un CSV.")
-for c in comptes:
-    suite = f" (relevé du {c['releve_du']})" if c["releve_du"] else ""
-    st.write(f"**{c['nom']}** ({c['type']}) : {format_eur(c['solde'])}{suite}")
+for banque, g in stats.soldes_par_banque(comptes).items():
+    st.markdown(f"**{BANQUES.get(banque, banque)}** : disponible {format_eur(g['courant'])}, épargne {format_eur(g['epargne'])}")
+    for c in g["comptes"]:
+        suite = f" (relevé du {c['releve_du']})" if c["releve_du"] else ""
+        st.write(f"{c['nom']} ({c['type']}) : {format_eur(c['solde'])}{suite}")
 
 prev = stats.prevision(conn)
 if prev["base"]:

@@ -242,3 +242,94 @@ def test_bases_separees(donnees):
     assert [r["nom"] for r in b.execute("SELECT nom FROM comptes")] == []
     assert auth.chemin_base("lucas") != auth.chemin_base("alexis")
     assert auth.chemin_base("lucas").parent == donnees / "users"
+
+
+# ---------- plusieurs banques ----------
+import sqlite3  # noqa: E402
+
+from app.importers import BANQUES, IMPORTERS  # noqa: E402
+from app.transactions import marquer_virements_internes, virements_internes_probables  # noqa: E402
+
+CSV_BOURSO = """dateOp;dateVal;label;category;categoryParent;supplierFound;amount;comment;accountNum;accountLabel;accountbalance
+2026-10-16;2026-10-16;"CARTE 16/10/26 CARREFOUR CB*1234";Alimentation;Vie quotidienne;carrefour;-23,40;;00040123456;COMPTE DEMO;1 250,10
+2026-10-14;2026-10-15;"VIR SEPA RECU DE LUCAS BNP";Virements;Virements;;300,00;;00040123456;COMPTE DEMO;1 250,10
+2026-10-02;2026-10-02;"PRLV SEPA SPOTIFY AB";Loisirs;Loisirs;spotify;-10,99;;00040123456;COMPTE DEMO;1 273,50
+"""
+
+CSV_BNP_VIREMENT = """Date operation;Libelle;Montant;Devise
+13/10/2026;VIR SEPA VERS BOURSORAMA;-300,00;EUR
+"""
+
+
+def test_cles_banques_coherentes():
+    assert set(IMPORTERS) == set(BANQUES) == {"bnp", "boursorama", "autre"}
+
+
+def test_import_boursorama():
+    imp = IMPORTERS["boursorama"]
+    lignes = imp.parse(CSV_BOURSO.encode("utf-8"))
+    assert [(l.date, l.montant) for l in lignes] == [("2026-10-16", -2340), ("2026-10-14", 30000), ("2026-10-02", -1099)]
+    assert "00040123456" not in repr(lignes)                  # le numéro de compte n'est jamais repris
+    assert imp.solde_indique(CSV_BOURSO.encode()) == 125010    # solde de l'opération la plus récente
+    assert IMPORTERS["bnp"].solde_indique(CSV_SIGNE.encode()) is None
+
+
+def test_import_bnp_et_banque_du_compte(conn):
+    assert IMPORTERS["bnp"].parse(CSV_SIGNE.encode())[0].montant == -2340
+    assert conn.execute("SELECT banque FROM comptes").fetchone()[0] == "autre"   # défaut
+
+
+def test_migration_v1_vers_v2(tmp_path):
+    chemin = tmp_path / "ancienne.db"
+    ancienne = sqlite3.connect(chemin)
+    ancienne.executescript(db.SCHEMA)       # schéma de la version 1 : pas de colonne banque
+    ancienne.execute("PRAGMA user_version = 1")
+    ancienne.execute("INSERT INTO comptes (nom, type) VALUES ('Vieux compte', 'courant')")
+    ancienne.commit()
+    ancienne.close()
+    c = db.connect(chemin)
+    r = c.execute("SELECT nom, banque FROM comptes").fetchone()
+    assert (r["nom"], r["banque"]) == ("Vieux compte", "autre")
+    assert c.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+
+
+def test_virements_entre_banques(conn):
+    conn.execute("UPDATE comptes SET nom = 'BNP courant', banque = 'bnp' WHERE id = 1")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Bourso courant', 'courant', 'boursorama')")
+    conn.commit()
+    importer_lignes(conn, 1, IMPORTERS["bnp"].parse(CSV_BNP_VIREMENT.encode()))
+    importer_lignes(conn, 2, IMPORTERS["boursorama"].parse(CSV_BOURSO.encode()))
+    paires = virements_internes_probables(conn)
+    assert len(paires) == 1 and paires[0]["montant"] == 30000
+    assert (paires[0]["de"], paires[0]["vers"]) == ("BNP courant", "Bourso courant")
+    # Avant : le virement compte comme 300 € de dépense et 300 € de revenu
+    assert stats.flux_mensuels(conn).set_index("mois").loc["2026-10", "entrees"] == 30000
+    marquer_virements_internes(conn, [paires[0]["sortie_id"], paires[0]["entree_id"]])
+    assert virements_internes_probables(conn) == []
+    flux = stats.flux_mensuels(conn).set_index("mois").loc["2026-10"]
+    assert flux["entrees"] == 0 and flux["sorties"] == 2340 + 1099   # plus que les vraies dépenses
+
+
+def test_virement_meme_compte_ou_montant_different_ignore(conn):
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Autre', 'courant', 'boursorama')")
+    conn.commit()
+    _historique(conn, "A", [("2026-10-10", -5000), ("2026-10-10", 5000)])      # même compte : pas un virement
+    _historique(conn, "B", [("2026-10-10", -5000)])
+    conn.execute("INSERT INTO transactions (compte_id, date, libelle, montant, hash) VALUES (2, '2026-10-20', 'Z', 5000, 'z')")
+    conn.commit()                                                                # 10 jours d'écart : trop loin
+    assert virements_internes_probables(conn) == []
+
+
+def test_filtre_par_compte_et_groupes(conn):
+    conn.execute("UPDATE comptes SET banque = 'bnp' WHERE id = 1")
+    conn.execute("INSERT INTO comptes (nom, type, banque, solde_initial) VALUES ('Livret', 'epargne', 'boursorama', 50000)")
+    conn.commit()
+    _historique(conn, "COURSES", [("2026-10-05", -1000)])
+    conn.execute("INSERT INTO transactions (compte_id, date, libelle, montant, hash) VALUES (2, '2026-10-06', 'X', -400, 'x')")
+    conn.commit()
+    assert stats.flux_mensuels(conn, [1]).iloc[0]["sorties"] == 1000
+    assert stats.flux_mensuels(conn, [2]).iloc[0]["sorties"] == 400
+    assert stats.flux_mensuels(conn, []).empty
+    assert stats.depenses_par_categorie(conn, "2026-10", [1])["depense"].sum() == 1000
+    g = stats.soldes_par_banque(stats.soldes_comptes(conn))
+    assert set(g) == {"bnp", "boursorama"} and g["bnp"]["courant"] == -1000 and g["boursorama"]["epargne"] == 50000

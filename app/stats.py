@@ -25,7 +25,8 @@ def soldes_comptes(conn: sqlite3.Connection) -> list[dict]:
                                  (c["id"],)).fetchone()[0]
             solde = c["solde_initial"] + somme
             info = None
-        resultat.append({"id": c["id"], "nom": c["nom"], "type": c["type"], "solde": solde, "releve_du": info})
+        resultat.append({"id": c["id"], "nom": c["nom"], "type": c["type"], "banque": c["banque"],
+                         "solde": solde, "releve_du": info})
     return resultat
 
 
@@ -57,11 +58,23 @@ def patrimoine(conn: sqlite3.Connection, jour: date | None = None) -> dict:
     return {"argent_dispo": dispo, "epargne": epargne, "dette": dette, "valeur_nette": dispo + epargne - dette}
 
 
-def flux_mensuels(conn: sqlite3.Connection) -> pd.DataFrame:
-    """Entrées et sorties par mois (hors virements internes). Colonnes : mois, entrees, sorties (positives)."""
+def _filtre_comptes(compte_ids: list[int] | None) -> tuple[str, list[int]]:
+    """Clause SQL « AND t.compte_id IN (...) » (paramètres liés, jamais de texte collé dans la requête)."""
+    if compte_ids is None:
+        return "", []
+    if not compte_ids:
+        return " AND 0", []
+    return f" AND t.compte_id IN ({','.join('?' * len(compte_ids))})", list(compte_ids)
+
+
+def flux_mensuels(conn: sqlite3.Connection, compte_ids: list[int] | None = None) -> pd.DataFrame:
+    """Entrées et sorties par mois (hors virements internes). Colonnes : mois, entrees, sorties (positives).
+    compte_ids : limiter à certains comptes (None = tous)."""
+    clause, params = _filtre_comptes(compte_ids)
     df = pd.read_sql_query(
         "SELECT substr(t.date, 1, 7) AS mois, t.montant FROM transactions t "
-        "LEFT JOIN categories c ON c.id = t.categorie_id WHERE COALESCE(c.type, '') != 'interne'", conn)
+        "LEFT JOIN categories c ON c.id = t.categorie_id WHERE COALESCE(c.type, '') != 'interne'" + clause,
+        conn, params=params)
     if df.empty:
         return pd.DataFrame(columns=["mois", "entrees", "sorties"])
     df["entrees"] = df["montant"].clip(lower=0)
@@ -69,12 +82,23 @@ def flux_mensuels(conn: sqlite3.Connection) -> pd.DataFrame:
     return df.groupby("mois")[["entrees", "sorties"]].sum().reset_index().sort_values("mois")
 
 
-def depenses_par_categorie(conn: sqlite3.Connection, mois: str) -> pd.DataFrame:
+def depenses_par_categorie(conn: sqlite3.Connection, mois: str, compte_ids: list[int] | None = None) -> pd.DataFrame:
+    clause, params = _filtre_comptes(compte_ids)
     return pd.read_sql_query(
         "SELECT COALESCE(c.nom, 'Sans catégorie') AS categorie, -SUM(t.montant) AS depense "
         "FROM transactions t LEFT JOIN categories c ON c.id = t.categorie_id "
-        "WHERE t.montant < 0 AND substr(t.date, 1, 7) = ? AND COALESCE(c.type, 'depense') = 'depense' "
-        "GROUP BY categorie ORDER BY depense DESC", conn, params=(mois,))
+        "WHERE t.montant < 0 AND substr(t.date, 1, 7) = ? AND COALESCE(c.type, 'depense') = 'depense'" + clause +
+        " GROUP BY categorie ORDER BY depense DESC", conn, params=[mois, *params])
+
+
+def soldes_par_banque(comptes: list[dict]) -> dict[str, dict]:
+    """Regroupe les comptes par banque, avec le total courant et le total épargne de chaque banque."""
+    groupes: dict[str, dict] = {}
+    for c in comptes:
+        g = groupes.setdefault(c["banque"], {"comptes": [], "courant": 0, "epargne": 0})
+        g["comptes"].append(c)
+        g[c["type"]] += c["solde"]
+    return groupes
 
 
 def etat_budget(depense: int, budget: int) -> str:

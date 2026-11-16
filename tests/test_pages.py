@@ -22,8 +22,9 @@ def base_demo(tmp_path_factory):
     from app.transactions import importer_lignes
     from scripts.seed_demo import csv_demo
     conn = db.connect()
-    conn.execute("INSERT INTO comptes (nom, type) VALUES ('Courant', 'courant')")
-    conn.execute("INSERT INTO comptes (nom, type) VALUES ('Livret', 'epargne')")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Courant', 'courant', 'bnp')")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Livret', 'epargne', 'boursorama')")
+    conn.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Courant Bourso', 'courant', 'boursorama')")
     conn.commit()
     importer_lignes(conn, 1, CsvBanque().parse(csv_demo().encode()))
     stats.caler_solde(conn, 1, 50_000)
@@ -99,3 +100,23 @@ def test_un_utilisateur_ne_voit_pas_les_donnees_de_l_autre(deux_utilisateurs):
     at2.session_state["user"] = "../lucas"   # nom forgé : doit être refusé, pas lu
     at2.run()
     assert at2.exception
+
+
+def test_page_import_affiche_les_virements_probables(tmp_path, monkeypatch):
+    monkeypatch.setenv("BUDGET_DB", str(tmp_path / "vi.db"))
+    monkeypatch.setenv("BUDGET_AUTH", "off")
+    sys.path.insert(0, RACINE)
+    from app import db
+    c = db.connect()
+    c.execute("INSERT INTO comptes (nom, type, banque) VALUES ('BNP courant', 'courant', 'bnp')")
+    c.execute("INSERT INTO comptes (nom, type, banque) VALUES ('Bourso courant', 'courant', 'boursorama')")
+    c.execute("INSERT INTO transactions (compte_id, date, libelle, montant, hash) VALUES (1, '2026-10-13', 'VIR', -30000, 'a')")
+    c.execute("INSERT INTO transactions (compte_id, date, libelle, montant, hash) VALUES (2, '2026-10-14', 'VIR RECU', 30000, 'b')")
+    c.commit()
+    c.close()
+    at = AppTest.from_file(os.path.join(RACINE, "app/pages/1_Import_et_comptes.py"), default_timeout=30).run()
+    assert not at.exception
+    assert len(at.checkbox) == 1
+    at.checkbox[0].check().run()
+    next(b for b in at.button if "virements internes" in b.label).click().run()
+    assert not at.exception and len(at.checkbox) == 0   # la paire est marquée, la liste est vide

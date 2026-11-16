@@ -3,7 +3,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE comptes (
@@ -124,9 +124,14 @@ def migrer(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "INSERT INTO regles (motif, categorie_id, priorite) "
                 "SELECT ?, id, ? FROM categories WHERE nom = ?", (motif, priorite, cat))
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.execute("PRAGMA user_version = 1")
         conn.commit()
-    # Futures migrations : if version < 2: ... puis PRAGMA user_version = 2
+        version = 1
+    if version < 2:
+        # Chaque compte appartient à une banque ('bnp', 'boursorama' ou 'autre') : détermine le format d'import.
+        conn.execute("ALTER TABLE comptes ADD COLUMN banque TEXT NOT NULL DEFAULT 'autre'")
+        conn.execute("PRAGMA user_version = 2")
+        conn.commit()
 
 
 def categorie_id(conn: sqlite3.Connection, nom: str) -> int | None:
