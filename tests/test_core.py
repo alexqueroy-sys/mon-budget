@@ -426,3 +426,28 @@ def test_pret_capital_reel_de_la_banque(conn):
     conn.execute("UPDATE prets SET capital_restant_reel = ?, date_reel = ?", (-r["solde"], r["date"]))
     conn.commit()
     assert stats.dette_totale(conn, date(2026, 11, 13)) == 3121920 != theorique
+
+
+# Format réel Boursorama : la colonne « Solde » est présente deux fois (montant, puis solde du compte). Données inventées.
+CSV_BOURSO_REEL = (
+    '"Date Opération";"Date Valeur";Libellé;"Libellé Suggéré";Catégorie;"Catégorie Parente";Solde;Commentaire;'
+    '"Numéro Compte";"Libellé Compte";Solde;Pointage\n'
+    '2026-11-16;2026-11-15;"VIR INST TEST";"Vir Inst Test";"Virements reçus";"Virements reçus";170,00;;000123;Banque;274.07;Non\n'
+    '2026-11-13;2026-11-13;"CARTE 12/11/26 CAFE TEST 4 CB*2345";"Café Test";Restaurants;Loisirs;-12,40;;000123;Banque;274.07;Non\n'
+    '2026-11-13;2026-11-13;"CARTE 12/11/26 ZZ MACHIN 2 CB*2345";"Carte 12/11/26 Zz Machin 2 Cb*2345";x;x;-10,00;;000123;Banque;274.07;Non\n'
+    '2026-11-12;2026-11-12;"PRLV SEPA FITNESS TEST";Autre;Logement;Logement;-30,00;;000123;Banque;296.47;Non\n'
+    '2026-11-10;2026-11-10;"VIR SEPA SALAIRE TEST";"Vir Sepa Salaire Test";Salaire;Revenus;"1 382,37";;000123;Banque;326.47;Non\n'
+)
+
+
+def test_boursorama_format_reel_deux_colonnes_solde():
+    imp = IMPORTERS["boursorama"]
+    lignes = imp.parse(CSV_BOURSO_REEL.encode())
+    assert [l.montant for l in lignes] == [17000, -1240, -1000, -3000, 138237]
+    assert lignes[0].date == "2026-11-16"
+    assert lignes[1].libelle == "Café Test"                       # libellé suggéré exploitable
+    assert lignes[2].libelle == "CARTE ZZ MACHIN 2"               # sinon libellé brut nettoyé (sans date ni CB*)
+    assert lignes[3].libelle == "PRLV SEPA FITNESS TEST"          # prélèvement : libellé brut, plus stable
+    # solde = fin de journée de la plus ancienne date + opérations suivantes ; la 1re ligne (jour de l'export)
+    # affiche un solde en retard (274.07) et ne doit pas servir de référence
+    assert imp.solde_indique(CSV_BOURSO_REEL.encode()) == 32647 - 3000 - 1240 - 1000 + 17000
