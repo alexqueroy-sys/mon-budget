@@ -16,7 +16,7 @@ Export CSV banque -> importers/ (adaptateur) -> transactions.py (anti-doublons, 
 | `app/auth.py` | Comptes (mots de passe hachés avec scrypt), blocage après 5 échecs, une base SQLite par utilisateur |
 | `app/db.py` | Schéma SQLite, migrations (`PRAGMA user_version`), catégories et règles par défaut |
 | `app/money.py` | Montants en centimes (entiers), dates, normalisation des libellés |
-| `app/importers/` | Un format d'import par banque (`bnp.py`, `boursorama.py`, générique). Couche isolée : remplaçable par un agrégateur bancaire sans toucher au reste |
+| `app/importers/` | Un format d'import par banque (`bnp.py`, `boursorama.py`, `caisse_epargne.py`, générique). Couche isolée : remplaçable par un agrégateur bancaire sans toucher au reste |
 | `app/transactions.py` | Import avec hash anti-doublons, catégorisation par règles |
 | `app/subscriptions.py` | Détection d'abonnements (même marchand, montant à 5 % près, intervalle régulier), à valider à la main |
 | `app/loan.py` | Prêt avec différé (intérêts capitalisés), tableau d'amortissement |
@@ -72,7 +72,7 @@ Durcissement déjà en place dans `docker-compose.yml` : utilisateur non root, s
 
 ## Utilisation
 
-1. Connecte-toi, puis page « Import et comptes » : crée un compte par compte bancaire en choisissant sa **banque** (BNP, Boursorama, autre). C'est la banque du compte qui décide du format d'import. Importe un export CSV par compte, puis cale le solde (avec celui indiqué dans le fichier Boursorama, ou celui de ton appli bancaire).
+1. Connecte-toi, puis page « Import et comptes » : crée un compte par compte bancaire en choisissant sa **banque** (BNP, Boursorama, Caisse d'Épargne, autre). C'est la banque du compte qui décide du format d'import. Importe un export CSV par compte, puis cale le solde (avec celui indiqué dans le fichier Boursorama, ou celui de ton appli bancaire).
    Les virements entre tes banques sont repérés (même montant, sortie d'un côté, entrée de l'autre, à 3 jours près) : coche-les dans la section « Virements entre tes comptes » pour qu'ils ne comptent ni comme dépense ni comme revenu.
 2. Crée un compte d'épargne (Livret A) et saisis un relevé par mois.
 3. Page « Prêt étudiant » : capital, taux, différé, nombre de mensualités. Compare avec le tableau d'amortissement de ton contrat.
@@ -90,7 +90,7 @@ Sauvegarde aussi `data/users.json` (les comptes). À copier ensuite vers un autr
 
 ## Limites connues
 
-- Les formats d'export BNP et Boursorama n'ont pas pu être testés sur de vrais fichiers. Le parseur est tolérant (séparateur, encodage, colonnes signées ou débit/crédit). Pour Boursorama, il attend les colonnes `dateOp`, `label`, `amount` et `accountbalance` d'après le format connu. Si un export est refusé, ajuste `synonymes_extra` dans `app/importers/bnp.py` ou `boursorama.py`.
+- Les formats d'export BNP, Boursorama et Caisse d'Épargne n'ont pas pu être testés sur de vrais fichiers. Le parseur est tolérant (séparateur, encodage, colonnes signées ou débit/crédit). Pour Boursorama, il attend les colonnes `dateOp`, `label`, `amount` et `accountbalance` d'après le format connu. Si un export est refusé, ajuste `synonymes_extra` dans le fichier de la banque concernée (`app/importers/bnp.py`, `boursorama.py` ou `caisse_epargne.py`).
 - Le numéro de compte présent dans l'export Boursorama n'est jamais lu ni enregistré.
 - Un virement de même montant à un ami peut être proposé à tort comme virement interne : tu valides à la main.
 - Le calcul du prêt est un modèle simple (taux mensuel proportionnel, pas d'assurance, pas de jours exacts) : indicatif seulement.

@@ -262,7 +262,7 @@ CSV_BNP_VIREMENT = """Date operation;Libelle;Montant;Devise
 
 
 def test_cles_banques_coherentes():
-    assert set(IMPORTERS) == set(BANQUES) == {"bnp", "boursorama", "autre"}
+    assert set(IMPORTERS) == set(BANQUES) == {"bnp", "boursorama", "caisse_epargne", "autre"}
 
 
 def test_import_boursorama():
@@ -333,3 +333,32 @@ def test_filtre_par_compte_et_groupes(conn):
     assert stats.depenses_par_categorie(conn, "2026-10", [1])["depense"].sum() == 1000
     g = stats.soldes_par_banque(stats.soldes_comptes(conn))
     assert set(g) == {"bnp", "boursorama"} and g["bnp"]["courant"] == -1000 and g["boursorama"]["epargne"] == 50000
+
+
+CSV_CE = """Compte : DEMO;;;;;;;;;;;;
+Date de comptabilisation;Libelle simplifie;Libelle operation;Reference;Informations complementaires;Type operation;Categorie;Sous categorie;Debit;Credit;Date operation;Date de valeur;Pointage operation
+16/10/26;CB CARREFOUR MARKET;CB CARREFOUR MARKET 1234 FACT 151026;REF1;;Carte bancaire;Alimentation;Supermarche;-23,40;;15/10/26;16/10/26;0
+01/10/26;VIR SALAIRE;VIR SEPA SALAIRE ENTREPRISE DEMO;REF2;;Virement;Revenus;Salaire;;1 150,00;01/10/26;01/10/26;0
+05/10/26;PRLV SPOTIFY;PRLV SEPA SPOTIFY AB;REF3;;Prelevement;Loisirs;Musique;-10,99;;05/10/26;05/10/26;0
+"""
+
+
+def test_import_caisse_epargne():
+    imp = IMPORTERS["caisse_epargne"]
+    lignes = imp.parse(CSV_CE.encode("cp1252"))
+    assert [(l.date, l.libelle, l.montant) for l in lignes] == [
+        ("2026-10-15", "CB CARREFOUR MARKET", -2340),
+        ("2026-10-01", "VIR SALAIRE", 115000),
+        ("2026-10-05", "PRLV SPOTIFY", -1099)]
+    assert imp.solde_indique(CSV_CE.encode()) is None
+    assert BANQUES["caisse_epargne"] == "Caisse d'Épargne"
+
+
+def test_caisse_epargne_pipeline_complet(conn):
+    conn.execute("UPDATE comptes SET banque = 'caisse_epargne' WHERE id = 1")
+    conn.commit()
+    importer_lignes(conn, 1, IMPORTERS["caisse_epargne"].parse(CSV_CE.encode()))
+    assert importer_lignes(conn, 1, IMPORTERS["caisse_epargne"].parse(CSV_CE.encode())) == (0, 3)  # pas de doublon
+    cats = {r["libelle"]: r["categorie"] for r in conn.execute(
+        "SELECT t.libelle, c.nom AS categorie FROM transactions t LEFT JOIN categories c ON c.id = t.categorie_id")}
+    assert cats["CB CARREFOUR MARKET"] == "Courses" and cats["PRLV SPOTIFY"] == "Abonnements"
